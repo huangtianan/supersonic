@@ -7,29 +7,23 @@ import WebPage from '../ChatMsg/WebPage';
 import Loading from './Loading';
 
 type Props = {
-  question: string;
   queryId?: number;
   executeLoading: boolean;
   entitySwitchLoading: boolean;
   chartIndex: number;
   executeTip?: string;
   data?: MsgDataType;
-  isMobileMode?: boolean;
   triggerResize?: boolean;
-  onChangeChart: () => void;
 };
 
 const ExecuteItem: React.FC<Props> = ({
-  question,
   queryId,
   executeLoading,
   entitySwitchLoading,
   chartIndex,
   executeTip,
   data,
-  isMobileMode,
   triggerResize,
-  onChangeChart,
 }) => {
   const prefixCls = `${PREFIX_CLS}-item`;
 
@@ -68,16 +62,13 @@ const ExecuteItem: React.FC<Props> = ({
       </div>
       <div className={`${prefixCls}-content-container ${prefixCls}-last-node`}>
         <Spin spinning={entitySwitchLoading}>
+          {data.queryAuthorization?.message && (
+            <div className={`${prefixCls}-auth-tip`}>提示：{data.queryAuthorization.message}</div>
+          )}
           {data?.queryMode === 'WEB_PAGE' ? (
             <WebPage id={queryId!} data={data} />
           ) : (
-            <ChatMsg
-              question={question}
-              data={data}
-              chartIndex={chartIndex}
-              isMobileMode={isMobileMode}
-              triggerResize={triggerResize}
-            />
+            <ChatMsg data={data} chartIndex={chartIndex} triggerResize={triggerResize} />
           )}
         </Spin>
       </div>

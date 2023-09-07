@@ -16,10 +16,17 @@ server:
   port: 9080
 
 authentication:
-  enable: false
+  enable: true
   exclude:
     path: /api/auth/user/register,/api/auth/user/login
+  token:
+    http:
+      header:
+        key: Authorization
 
 semantic:
   url:
     prefix: http://127.0.0.1:9081
+
+llm:
+  url: http://127.0.0.1:9092
