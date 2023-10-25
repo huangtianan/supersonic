@@ -1,98 +1,147 @@
 #!/usr/bin/env bash
 
+set -x
 sbinDir=$(cd "$(dirname "$0")"; pwd)
-baseDir=$(cd "$sbinDir/.." && pwd -P)
-runtimeDir=$baseDir/../runtime
-buildDir=$baseDir/build
+chmod +x $sbinDir/supersonic-common.sh
+source $sbinDir/supersonic-common.sh
+
+# 1.init environment parameters
+if [ ! -d "$runtimeDir" ]; then
+    echo "the runtime dir does not exist move all to runtime"
+    moveAllToRuntime
+fi
+set +x
 
 command=$1
 service=$2
+if [ -z "$service"  ]; then
+  service=${STANDALONE_SERVICE}
+fi
+
+app_name=$STANDALONE_APP_NAME
+main_class="com.tencent.supersonic.StandaloneLauncher"
+model_name=$service
+
+if [ "$service" == "llmparser" ]; then
+  model_name=${STANDALONE_SERVICE}
+fi
 
 cd $baseDir
-if [[ "$service" == "semantic" || -z "$service"  ]] && [ "$command" != "stop"  ]; then
-   #1. clear file
-   mkdir -p ${runtimeDir}
-   rm -fr ${runtimeDir}/*
 
-   #2. package lib
-   tar -zxvf ${buildDir}/supersonic.tar.gz  -C ${runtimeDir}
-   mv ${runtimeDir}/launchers-standalone-* ${runtimeDir}/supersonic-standalone
-   tar -zxvf ${buildDir}/supersonic-webapp.tar.gz  -C ${buildDir}
-   mkdir -p ${runtimeDir}/supersonic-standalone/webapp
-   cp -fr  ${buildDir}/supersonic-webapp/* ${runtimeDir}/supersonic-standalone/webapp
-   rm -fr  ${buildDir}/supersonic-webapp
-fi
-if [[ "$service" == "semantic"  ]]; then
-   json=$(cat ${runtimeDir}/supersonic-semantic/webapp/supersonic.config.json)
-   json=$(echo $json | jq '.env="semantic"')
-   echo $json > ${runtimeDir}/supersonic-semantic/webapp/supersonic.config.json
-fi
+# 2.set main class
+function setMainClass {
+  if [ "$service" == $CHAT_SERVICE ]; then
+    main_class="com.tencent.supersonic.ChatLauncher"
+  elif [ "$service" == $SEMANTIC_SERVICE ]; then
+    main_class="com.tencent.supersonic.SemanticLauncher"
+  fi
+}
+setMainClass
+# 3.set app name
+function setAppName {
+  if [ "$service" == $CHAT_SERVICE ]; then
+    app_name=$CHAT_APP_NAME
+  elif [ "$service" == $SEMANTIC_SERVICE ]; then
+    app_name=$SEMANTIC_APP_NAME
+  elif [ "$service" == $LLMPARSER_SERVICE ]; then
+    app_name=$LLMPARSER_APP_NAME
+  fi
+}
+setAppName
 
-if [[ "$service" == "chat"  ]]; then
-   json=$(cat ${runtimeDir}/supersonic-chat/webapp/supersonic.config.json)
-   json=$(echo $json | jq '.env="chat"')
-   echo $json > ${runtimeDir}/supersonic-chat/webapp/supersonic.config.json
-fi
-echo $command
-echo $service
+function reloadExamples {
+  pythonRunDir=${runtimeDir}/supersonic-${model_name}/llmparser
+  cd $pythonRunDir/sql
+  ${python_path} examples_reload_run.py
+}
+
+
+function start()
+{
+  local_app_name=$1
+  pid=$(ps aux |grep ${local_app_name} | grep -v grep | awk '{print $2}')
+  if [[ "$pid" == "" ]]; then
+    if [[ ${local_app_name} == $LLMPARSER_APP_NAME ]]; then
+      runPythonService ${local_app_name}
+    else
+      runJavaService ${local_app_name}
+    fi
+  else
+    echo "Process (PID = $pid) is running."
+    return 1
+  fi
+}
+
+function stop()
+{
+  pid=$(ps aux | grep $1 | grep -v grep | awk '{print $2}')
+  if [[ "$pid" == "" ]]; then
+    echo "Process $1 is not running !"
+    return 1
+  else
+    kill -9 $pid
+    echo "Process (PID = $pid) is killed !"
+    return 0
+  fi
+}
+
+function reload()
+{
+  if [[ $1 == $LLMPARSER_APP_NAME ]]; then
+    reloadExamples
+  fi
+}
+
+# 4. execute command operation
 case "$command" in
   start)
-        if [[ "$service" == "semantic"  ]];then
-          echo -e "Starting semantic java service"
-          sh ${runtimeDir}/supersonic-semantic/bin/service.sh start
-        elif [[ "$service" == "chat"  ]];then
-          echo -e "Starting chat java service"
-          sh ${runtimeDir}/supersonic-chat/bin/service.sh start
-        elif [[ "$service" == "llmparser"  ]];then
-          echo -e "Starting llmparser python service"
-          sh ${runtimeDir}/supersonic-standalone/llm/bin/service.sh  start
-        elif [[ -z "$service"  ]]; then
-          echo -e "Starting supersonic services"
-          sh ${runtimeDir}/supersonic-standalone/bin/service.sh start
-          sh ${runtimeDir}/supersonic-standalone/llm/bin/service.sh start
+        if [ "$service" == $STANDALONE_SERVICE ]; then
+          echo  "Starting $LLMPARSER_APP_NAME"
+          start $LLMPARSER_APP_NAME
+          echo  "Starting $app_name"
+          start $app_name
         else
-          echo "Use command {chat|semantic|llmparser} to run."
+          echo  "Starting $app_name"
+          start $app_name
         fi
+        echo  "Start success"
         ;;
   stop)
-        if [[ "$service" == "semantic"  ]];then
-          echo -e "Stopping semantic java service"
-          sh ${runtimeDir}/supersonic-semantic/bin/service.sh stop
-        elif [[ "$service" == "chat"  ]];then
-          echo -e "Stopping chat java service"
-          sh ${runtimeDir}/supersonic-chat/bin/service.sh stop
-        elif [[ "$service" == "llmparser"  ]];then
-          echo -e "Stopping llmparser python service"
-          sh ${runtimeDir}/supersonic-standalone/llm/bin/service.sh  stop
-        elif [[ -z "$service"  ]]; then
-          echo -e "Stopping supersonic services"
-          sh ${runtimeDir}/supersonic-standalone/bin/service.sh stop
-          sh ${runtimeDir}/supersonic-standalone/llm/bin/service.sh stop
+        if [ "$service" == $STANDALONE_SERVICE ]; then
+          echo  "Stopping $LLMPARSER_APP_NAME"
+          stop $LLMPARSER_APP_NAME
+          echo  "Stopping $app_name"
+          stop $app_name
         else
-          echo "Use command {chat|semantic|llmparser} to run."
+          echo  "Stopping $app_name"
+          stop ${app_name}
         fi
+        echo  "Stop success"
+        ;;
+  reload)
+        echo  "Reloading ${app_name}"
+        reload ${app_name}
+        echo  "Reload success"
         ;;
   restart)
-        if [[ "$service" == "semantic"  ]];then
-          echo -e "Restarting semantic java service"
-          sh ${runtimeDir}/supersonic-semantic/bin/service.sh restart
-        elif [[ "$service" == "chat"  ]];then
-          echo -e "Restarting chat java service"
-          sh ${runtimeDir}/supersonic-chat/bin/service.sh restart
-        elif [[ "$service" == "llmparser"  ]];then
-          echo -e "Restarting llmparser python service"
-          sh ${runtimeDir}/supersonic-standalone/llm/bin/service.sh  restart
-        elif [[ -z "$service"  ]]; then
-          echo -e "Restarting supersonic services"
-          sh ${runtimeDir}/supersonic-standalone/bin/service.sh restart
-          sh ${runtimeDir}/supersonic-standalone/llm/bin/service.sh restart
+        if [ "$service" == $STANDALONE_SERVICE ]; then
+          echo  "Stopping ${app_name}"
+          stop ${app_name}
+          echo  "Stopping ${LLMPARSER_APP_NAME}"
+          stop $LLMPARSER_APP_NAME
+          echo  "Starting ${LLMPARSER_APP_NAME}"
+          start $LLMPARSER_APP_NAME
+          echo  "Starting ${app_name}"
+          start ${app_name}
         else
-          echo "Use command {chat|semantic|llmparser} to run."
+          echo  "Stopping ${app_name}"
+          stop ${app_name}
+          echo  "Starting ${app_name}"
+          start ${app_name}
         fi
+        echo  "Restart success"
         ;;
   *)
-        echo "Use command {start|stop|status|restart} to run."
+        echo "Use command {start|stop|restart} to run."
         exit 1
 esac
-
-exit 0

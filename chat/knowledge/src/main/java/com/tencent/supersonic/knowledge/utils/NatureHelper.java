@@ -23,6 +23,9 @@ public class NatureHelper {
 
     public static SchemaElementType convertToElementType(String nature) {
         DictWordType dictWordType = DictWordType.getNatureType(nature);
+        if (Objects.isNull(dictWordType)) {
+            return null;
+        }
         SchemaElementType result = null;
         switch (dictWordType) {
             case METRIC:
@@ -162,4 +165,13 @@ public class NatureHelper {
         return modelToNatureStat.entrySet().stream().filter(entry -> entry.getValue().size() == maxModelTypeSize)
                 .map(entry -> entry.getKey()).collect(Collectors.toList());
     }
+
+    public static Long getElementID(String nature) {
+        String[] split = nature.split(DictWordType.NATURE_SPILT);
+        if (split.length >= 3) {
+            return Long.valueOf(split[2]);
+        }
+        return 0L;
+    }
+
 }

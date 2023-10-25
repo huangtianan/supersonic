@@ -2,18 +2,22 @@ package com.tencent.supersonic.semantic.query.rest;
 
 import com.tencent.supersonic.auth.api.authentication.pojo.User;
 import com.tencent.supersonic.auth.api.authentication.utils.UserHolder;
+import com.tencent.supersonic.common.util.JsonUtil;
+import com.tencent.supersonic.semantic.api.model.enums.QueryTypeEnum;
+import com.tencent.supersonic.semantic.api.model.response.ExplainResp;
 import com.tencent.supersonic.semantic.api.model.response.QueryResultWithSchemaResp;
 import com.tencent.supersonic.semantic.api.model.response.SqlParserResp;
-import com.tencent.supersonic.semantic.api.query.request.QueryDimValueReq;
-import com.tencent.supersonic.semantic.api.query.request.QueryDslReq;
-import com.tencent.supersonic.semantic.api.query.request.ParseSqlReq;
-import com.tencent.supersonic.semantic.api.query.request.QueryStructReq;
-import com.tencent.supersonic.semantic.api.query.request.QueryMultiStructReq;
+import com.tencent.supersonic.semantic.api.query.request.ExplainSqlReq;
 import com.tencent.supersonic.semantic.api.query.request.ItemUseReq;
+import com.tencent.supersonic.semantic.api.query.request.ParseSqlReq;
+import com.tencent.supersonic.semantic.api.query.request.QueryDimValueReq;
+import com.tencent.supersonic.semantic.api.query.request.QueryS2QLReq;
+import com.tencent.supersonic.semantic.api.query.request.QueryMultiStructReq;
+import com.tencent.supersonic.semantic.api.query.request.QueryStructReq;
 import com.tencent.supersonic.semantic.api.query.response.ItemUseResp;
-import com.tencent.supersonic.semantic.query.service.SemanticQueryEngine;
-import com.tencent.supersonic.semantic.query.service.QueryService;
 import com.tencent.supersonic.semantic.query.persistence.pojo.QueryStatement;
+import com.tencent.supersonic.semantic.query.service.QueryService;
+import com.tencent.supersonic.semantic.query.service.SemanticQueryEngine;
 import java.util.List;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -38,11 +42,11 @@ public class QueryController {
 
 
     @PostMapping("/sql")
-    public Object queryBySql(@RequestBody QueryDslReq queryDslReq,
+    public Object queryBySql(@RequestBody QueryS2QLReq queryS2QLReq,
             HttpServletRequest request,
             HttpServletResponse response) throws Exception {
         User user = UserHolder.findUser(request, response);
-        Object queryBySql = queryService.queryBySql(queryDslReq, user);
+        Object queryBySql = queryService.queryBySql(queryS2QLReq, user);
         log.info("queryBySql:{},queryBySql");
         return queryBySql;
     }
@@ -55,11 +59,26 @@ public class QueryController {
         return queryService.queryByStructWithAuth(queryStructReq, user);
     }
 
+    @PostMapping("/download/struct")
+    public void downloadByStruct(@RequestBody QueryStructReq queryStructReq,
+                                HttpServletRequest request,
+                                HttpServletResponse response) throws Exception {
+        User user = UserHolder.findUser(request, response);
+        queryService.downloadByStruct(queryStructReq, user, response);
+
+    }
+
+    @PostMapping("/queryStatement")
+    public Object queryStatement(@RequestBody QueryStatement queryStatement) throws Exception {
+        return queryService.queryByQueryStatement(queryStatement);
+    }
+
     @PostMapping("/struct/parse")
     public SqlParserResp parseByStruct(@RequestBody ParseSqlReq parseSqlReq,
             HttpServletRequest request,
             HttpServletResponse response) throws Exception {
-        QueryStatement queryStatement = semanticQueryEngine.physicalSql(parseSqlReq);
+        QueryStructReq queryStructCmd = new QueryStructReq();
+        QueryStatement queryStatement = semanticQueryEngine.physicalSql(queryStructCmd, parseSqlReq);
         SqlParserResp sqlParserResp = new SqlParserResp();
         BeanUtils.copyProperties(queryStatement, sqlParserResp);
         return sqlParserResp;
@@ -89,10 +108,36 @@ public class QueryController {
 
     @PostMapping("/queryDimValue")
     public QueryResultWithSchemaResp queryDimValue(@RequestBody QueryDimValueReq queryDimValueReq,
-                                                   HttpServletRequest request,
-                                                   HttpServletResponse response) {
+            HttpServletRequest request,
+            HttpServletResponse response) {
         User user = UserHolder.findUser(request, response);
         return queryService.queryDimValue(queryDimValueReq, user);
+    }
+
+    @PostMapping("/explain")
+    public <T> ExplainResp explain(@RequestBody ExplainSqlReq<T> explainSqlReq,
+            HttpServletRequest request,
+            HttpServletResponse response) throws Exception {
+
+        User user = UserHolder.findUser(request, response);
+        String queryReqJson = JsonUtil.toString(explainSqlReq.getQueryReq());
+        QueryTypeEnum queryTypeEnum = explainSqlReq.getQueryTypeEnum();
+
+        if (QueryTypeEnum.SQL.equals(queryTypeEnum)) {
+            QueryS2QLReq queryS2QLReq = JsonUtil.toObject(queryReqJson, QueryS2QLReq.class);
+            ExplainSqlReq<QueryS2QLReq> explainSqlReqNew = ExplainSqlReq.<QueryS2QLReq>builder()
+                    .queryReq(queryS2QLReq)
+                    .queryTypeEnum(queryTypeEnum).build();
+            return queryService.explain(explainSqlReqNew, user);
+        }
+        if (QueryTypeEnum.STRUCT.equals(queryTypeEnum)) {
+            QueryStructReq queryStructReq = JsonUtil.toObject(queryReqJson, QueryStructReq.class);
+            ExplainSqlReq<QueryStructReq> explainSqlReqNew = ExplainSqlReq.<QueryStructReq>builder()
+                    .queryReq(queryStructReq)
+                    .queryTypeEnum(queryTypeEnum).build();
+            return queryService.explain(explainSqlReqNew, user);
+        }
+        return null;
     }
 
 }

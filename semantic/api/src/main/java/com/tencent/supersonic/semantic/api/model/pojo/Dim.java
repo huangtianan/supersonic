@@ -25,6 +25,26 @@ public class Dim {
 
     private String bizName;
 
+    private String description;
+
+    public Dim(String name, String bizName, String type, Integer isCreateDimension) {
+        this.name = name;
+        this.type = type;
+        this.isCreateDimension = isCreateDimension;
+        this.bizName = bizName;
+    }
+
+    public Dim(String name, String type, String expr, String dateFormat, DimensionTimeTypeParams typeParams,
+               Integer isCreateDimension, String bizName) {
+        this.name = name;
+        this.type = type;
+        this.expr = expr;
+        this.dateFormat = dateFormat;
+        this.typeParams = typeParams;
+        this.isCreateDimension = isCreateDimension;
+        this.bizName = bizName;
+    }
+
     public static Dim getDefault() {
         return new Dim("日期", "time", "2023-05-28",
                 Constants.DAY_FORMAT,

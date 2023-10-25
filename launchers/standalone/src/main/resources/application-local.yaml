@@ -26,18 +26,16 @@ authentication:
       header:
         key: Authorization
 
-semantic:
-  url:
-    prefix: http://127.0.0.1:9081
-
 time:
   threshold: 100
 
 mybatis:
   mapper-locations=classpath:mappers/custom/*.xml,classpath*:/mappers/*.xml
 
+
 llm:
-  url: http://127.0.0.1:9092
+  parser:
+    url:  http://127.0.0.1:9092
 embedding:
   url: http://127.0.0.1:9092
 functionCall:

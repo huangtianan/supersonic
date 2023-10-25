@@ -3,11 +3,12 @@ package com.tencent.supersonic.semantic.query.utils;
 import static com.tencent.supersonic.common.pojo.Constants.JOIN_UNDERLINE;
 import static com.tencent.supersonic.common.pojo.Constants.UNIONALL;
 
-import com.tencent.supersonic.common.pojo.Constants;
 import com.tencent.supersonic.common.pojo.Aggregator;
-import com.tencent.supersonic.common.util.cache.CacheUtils;
-import com.tencent.supersonic.semantic.api.model.enums.TimeDimensionEnum;
+import com.tencent.supersonic.common.pojo.Constants;
 import com.tencent.supersonic.common.pojo.QueryColumn;
+import com.tencent.supersonic.common.util.cache.CacheUtils;
+import com.tencent.supersonic.semantic.api.model.enums.SemanticTypeEnum;
+import com.tencent.supersonic.semantic.api.model.enums.TimeDimensionEnum;
 import com.tencent.supersonic.semantic.api.model.response.DimensionResp;
 import com.tencent.supersonic.semantic.api.model.response.MetricResp;
 import com.tencent.supersonic.semantic.api.model.response.QueryResultWithSchemaResp;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.PostConstruct;
@@ -36,10 +38,13 @@ import org.springframework.util.CollectionUtils;
 @Component
 public class QueryUtils {
 
+    private static final String pattern = "\\(`(.*?)`\\)";
+
+    private static final String no_quotation_pattern = "\\((.*?)\\)";
+
     private final Set<Pattern> patterns = new HashSet<>();
     @Value("${query.cache.enable:true}")
     private Boolean cacheEnable;
-
     private final CacheUtils cacheUtils;
     private final StatUtils statUtils;
 
@@ -72,7 +77,7 @@ public class QueryUtils {
         addSysTimeDimension(namePair, nameTypePair);
         metricDescList.forEach(metricDesc -> {
             namePair.put(metricDesc.getBizName(), metricDesc.getName());
-            nameTypePair.put(metricDesc.getBizName(), "NUMBER");
+            nameTypePair.put(metricDesc.getBizName(), SemanticTypeEnum.NUMBER.name());
         });
         dimensionDescList.forEach(dimensionDesc -> {
             namePair.put(dimensionDesc.getBizName(), dimensionDesc.getName());
@@ -86,22 +91,32 @@ public class QueryUtils {
             }
             if (namePair.containsKey(nameEn)) {
                 column.setName(namePair.get(nameEn));
+            } else {
+                String nameEnByRegex = getNameEnByRegex(nameEn, pattern);
+                if (StringUtils.isEmpty(nameEnByRegex)) {
+                    nameEnByRegex = getNameEnByRegex(nameEn, no_quotation_pattern);
+                }
+                if (StringUtils.isNotEmpty(nameEnByRegex) && StringUtils.isNotEmpty(namePair.get(nameEnByRegex))) {
+                    String filedName = namePair.get(nameEnByRegex);
+                    column.setName(nameEn.replaceAll(nameEnByRegex, filedName));
+                }
             }
             if (nameTypePair.containsKey(nameEn)) {
                 column.setShowType(nameTypePair.get(nameEn));
             }
             if (!nameTypePair.containsKey(nameEn) && isNumberType(column.getType())) {
-                column.setShowType("NUMBER");
+                column.setShowType(SemanticTypeEnum.NUMBER.name());
             }
             if (metricRespMap.containsKey(nameEn)) {
                 column.setDataFormatType(metricRespMap.get(nameEn).getDataFormatType());
                 column.setDataFormat(metricRespMap.get(nameEn).getDataFormat());
             }
             if (StringUtils.isEmpty(column.getShowType())) {
-                column.setShowType("NUMBER");
+                column.setShowType(SemanticTypeEnum.CATEGORY.name());
             }
         });
     }
+
 
     public void fillItemNameInfo(QueryResultWithSchemaResp queryResultWithColumns,
             QueryMultiStructReq queryMultiStructCmd) {
@@ -140,6 +155,17 @@ public class QueryUtils {
                 }
             }
         });
+    }
+
+    private String getNameEnByRegex(String nameEn, String pattern) {
+        Pattern p = Pattern.compile(pattern);
+        Matcher m = p.matcher(nameEn);
+
+        if (m.find()) {
+            String result = m.group(1);
+            return result;
+        }
+        return null;
     }
 
     private boolean isNumberType(String type) {

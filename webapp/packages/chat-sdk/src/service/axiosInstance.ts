@@ -19,7 +19,6 @@ axiosInstance.interceptors.request.use(
   (config: any) => {
     const token = getToken();
     if (token && config?.headers) {
-      config.headers.Auth = `Bearer ${token}`;
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -33,18 +32,18 @@ axiosInstance.interceptors.request.use(
 // 响应拦截器
 axiosInstance.interceptors.response.use(
   (response: any) => {
-    const redirect = response.headers.get('redirect');
+    const redirect = response.headers['redirect'];
     if (redirect === 'REDIRECT') {
       let win: any = window;
       while (win !== win.top) {
         win = win.top;
       }
-      const contextpath = response.headers.get('contextpath');
+      const contextpath = response.headers['contextpath'];
       win.location.href =
         contextpath?.substring(0, contextpath?.indexOf('&')) +
         `&redirect_uri=${encodeURIComponent(`http://${win.location.host}`)}`;
     }
-    return response;
+    return response.data;
   },
   (error) => {
     // 对响应错误进行处理

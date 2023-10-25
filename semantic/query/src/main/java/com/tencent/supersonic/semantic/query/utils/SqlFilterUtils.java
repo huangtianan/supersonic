@@ -25,6 +25,7 @@ import org.springframework.util.CollectionUtils;
 public class SqlFilterUtils {
 
     private static String pattern = "^'.*?'$";
+    private static String numericPattern = "^[0-9]+$";
 
     public List<String> getFiltersCol(List<Filter> filters) {
         List<String> filterCols = new ArrayList<>();
@@ -219,7 +220,7 @@ public class SqlFilterUtils {
     }
 
     private String valueApostropheLogic(String value) {
-        if (Pattern.matches(pattern, value)) {
+        if (Pattern.matches(pattern, value) || Pattern.matches(numericPattern, value)) {
             return value;
         }
         return Constants.APOSTROPHE + value + Constants.APOSTROPHE;

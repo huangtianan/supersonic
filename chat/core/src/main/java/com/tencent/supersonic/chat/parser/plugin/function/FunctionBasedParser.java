@@ -2,15 +2,13 @@ package com.tencent.supersonic.chat.parser.plugin.function;
 
 import com.alibaba.fastjson.JSON;
 import com.tencent.supersonic.chat.api.pojo.QueryContext;
-import com.tencent.supersonic.chat.config.FunctionCallInfoConfig;
 import com.tencent.supersonic.chat.parser.ParseMode;
-import com.tencent.supersonic.chat.parser.SatisfactionChecker;
 import com.tencent.supersonic.chat.parser.plugin.PluginParser;
 import com.tencent.supersonic.chat.plugin.Plugin;
 import com.tencent.supersonic.chat.plugin.PluginManager;
 import com.tencent.supersonic.chat.plugin.PluginParseConfig;
 import com.tencent.supersonic.chat.plugin.PluginRecallResult;
-import com.tencent.supersonic.chat.query.llm.dsl.DslQuery;
+import com.tencent.supersonic.chat.query.llm.s2ql.S2QLQuery;
 import com.tencent.supersonic.chat.service.PluginService;
 import com.tencent.supersonic.common.util.ContextUtils;
 import java.net.URI;
@@ -37,9 +35,9 @@ public class FunctionBasedParser extends PluginParser {
 
     @Override
     public boolean checkPreCondition(QueryContext queryContext) {
-        FunctionCallInfoConfig functionCallConfig = ContextUtils.getBean(FunctionCallInfoConfig.class);
+        FunctionCallConfig functionCallConfig = ContextUtils.getBean(FunctionCallConfig.class);
         String functionUrl = functionCallConfig.getUrl();
-        if (StringUtils.isBlank(functionUrl) || SatisfactionChecker.check(queryContext)) {
+        if (StringUtils.isBlank(functionUrl)) {
             log.info("functionUrl:{}, skip function parser, queryText:{}", functionUrl,
                     queryContext.getRequest().getQueryText());
             return false;
@@ -103,7 +101,7 @@ public class FunctionBasedParser extends PluginParser {
         log.info("user decide Model:{}", modelId);
         List<Plugin> plugins = getPluginList(queryContext);
         List<PluginParseConfig> functionDOList = plugins.stream().filter(plugin -> {
-            if (DslQuery.QUERY_MODE.equalsIgnoreCase(plugin.getType())) {
+            if (S2QLQuery.QUERY_MODE.equalsIgnoreCase(plugin.getType())) {
                 return false;
             }
             if (plugin.getParseModeConfig() == null) {
@@ -134,7 +132,7 @@ public class FunctionBasedParser extends PluginParser {
     }
 
     public FunctionResp requestFunction(FunctionReq functionReq) {
-        FunctionCallInfoConfig functionCallInfoConfig = ContextUtils.getBean(FunctionCallInfoConfig.class);
+        FunctionCallConfig functionCallInfoConfig = ContextUtils.getBean(FunctionCallConfig.class);
         String url = functionCallInfoConfig.getUrl() + functionCallInfoConfig.getPluginSelectPath();
         HttpHeaders headers = new HttpHeaders();
         long startTime = System.currentTimeMillis();

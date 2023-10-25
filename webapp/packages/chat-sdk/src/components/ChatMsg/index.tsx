@@ -12,12 +12,13 @@ import DrillDownDimensions from '../DrillDownDimensions';
 import MetricOptions from '../MetricOptions';
 
 type Props = {
+  queryId?: number;
   data: MsgDataType;
   chartIndex: number;
   triggerResize?: boolean;
 };
 
-const ChatMsg: React.FC<Props> = ({ data, chartIndex, triggerResize }) => {
+const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) => {
   const { queryColumns, queryResults, chatContext, queryMode } = data || {};
   const { dimensionFilters, elementMatches } = chatContext || {};
 
@@ -58,11 +59,9 @@ const ChatMsg: React.FC<Props> = ({ data, chartIndex, triggerResize }) => {
   const metricFields = columns.filter(item => item.showType === 'NUMBER');
 
   const isDslMetricCard =
-    queryMode === 'DSL' && singleData && metricFields.length === 1 && columns.length === 1;
+    queryMode === 'LLM_S2QL' && singleData && metricFields.length === 1 && columns.length === 1;
 
-  const isMetricCard =
-    (queryMode.includes('METRIC') || isDslMetricCard) &&
-    (singleData || chatContext?.dateInfo?.startDate === chatContext?.dateInfo?.endDate);
+  const isMetricCard = (queryMode.includes('METRIC') || isDslMetricCard) && singleData;
 
   const isText =
     columns.length === 1 &&
@@ -94,24 +93,27 @@ const ChatMsg: React.FC<Props> = ({ data, chartIndex, triggerResize }) => {
     if (isTable) {
       return <Table data={{ ...data, queryColumns: columns, queryResults: dataSource }} />;
     }
-    if (dateField && metricFields.length > 0) {
-      if (!dataSource.every(item => item[dateField.nameEn] === dataSource[0][dateField.nameEn])) {
-        return (
-          <MetricTrend
-            data={{
-              ...data,
-              queryColumns: columns,
-              queryResults: dataSource,
-            }}
-            loading={loading}
-            chartIndex={chartIndex}
-            triggerResize={triggerResize}
-            activeMetricField={activeMetricField}
-            currentDateOption={currentDateOption}
-            onSelectDateOption={selectDateOption}
-          />
-        );
-      }
+    if (
+      dateField &&
+      metricFields.length > 0 &&
+      !dataSource.every(item => item[dateField.nameEn] === dataSource[0][dateField.nameEn])
+    ) {
+      return (
+        <MetricTrend
+          data={{
+            ...data,
+            queryColumns: columns,
+            queryResults: dataSource,
+          }}
+          loading={loading}
+          chartIndex={chartIndex}
+          triggerResize={triggerResize}
+          activeMetricField={activeMetricField}
+          drillDownDimension={drillDownDimension}
+          currentDateOption={currentDateOption}
+          onSelectDateOption={selectDateOption}
+        />
+      );
     }
     if (categoryField?.length > 0 && metricFields?.length > 0) {
       return (
@@ -127,14 +129,15 @@ const ChatMsg: React.FC<Props> = ({ data, chartIndex, triggerResize }) => {
 
   const onLoadData = async (value: any) => {
     setLoading(true);
-    const { data } = await queryData({
-      ...chatContext,
+    const res: any = await queryData({
+      queryId,
+      parseId: chatContext.id,
       ...value,
     });
     setLoading(false);
-    if (data.code === 200) {
-      updateColummns(data.data?.queryColumns || []);
-      setDataSource(data.data?.queryResults || []);
+    if (res.code === 200) {
+      updateColummns(res.data?.queryColumns || []);
+      setDataSource(res.data?.queryResults || []);
     }
   };
 
@@ -197,7 +200,7 @@ const ChatMsg: React.FC<Props> = ({ data, chartIndex, triggerResize }) => {
 
   const existDrillDownDimension = queryMode.includes('METRIC') && !isText && !isEntityMode;
 
-  const isMultipleMetric = existDrillDownDimension && chatContext?.metrics?.length > 1;
+  const isMultipleMetric = queryMode.includes('METRIC') && chatContext?.metrics?.length > 1;
 
   return (
     <div className={chartMsgClass}>
@@ -207,7 +210,11 @@ const ChatMsg: React.FC<Props> = ({ data, chartIndex, triggerResize }) => {
         <div>
           {getMsgContent()}
           {(isMultipleMetric || existDrillDownDimension) && (
-            <div className={`${prefixCls}-bottom-tools`}>
+            <div
+              className={`${prefixCls}-bottom-tools ${
+                isMetricCard ? `${prefixCls}-metric-card-tools` : ''
+              }`}
+            >
               {isMultipleMetric && (
                 <MetricOptions
                   metrics={chatContext.metrics}
@@ -219,6 +226,7 @@ const ChatMsg: React.FC<Props> = ({ data, chartIndex, triggerResize }) => {
               {existDrillDownDimension && (
                 <DrillDownDimensions
                   modelId={chatContext.modelId}
+                  metricId={activeMetricField?.id || defaultMetricField?.id}
                   drillDownDimension={drillDownDimension}
                   originDimensions={chatContext.dimensions}
                   dimensionFilters={chatContext.dimensionFilters}
