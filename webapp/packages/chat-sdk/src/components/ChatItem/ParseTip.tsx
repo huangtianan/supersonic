@@ -1,8 +1,8 @@
 import React, { ReactNode } from 'react';
 import { AGG_TYPE_MAP, PREFIX_CLS } from '../../common/constants';
 import { ChatContextType, DateInfoType, EntityInfoType, FilterItemType } from '../../common/type';
-import { DatePicker } from 'antd';
-import { CheckCircleFilled } from '@ant-design/icons';
+import { Button, DatePicker } from 'antd';
+import { CheckCircleFilled, ReloadOutlined } from '@ant-design/icons';
 import Loading from './Loading';
 import FilterItem from './FilterItem';
 import moment from 'moment';
@@ -21,10 +21,13 @@ type Props = {
   dateInfo: DateInfoType;
   entityInfo: EntityInfoType;
   integrateSystem?: string;
+  parseTimeCost?: number;
+  isDeveloper?: boolean;
   onSelectParseInfo: (parseInfo: ChatContextType) => void;
   onSwitchEntity: (entityId: string) => void;
   onFiltersChange: (filters: FilterItemType[]) => void;
   onDateInfoChange: (dateRange: any) => void;
+  onRefresh: () => void;
 };
 
 const MAX_OPTION_VALUES_COUNT = 2;
@@ -39,10 +42,13 @@ const ParseTip: React.FC<Props> = ({
   dateInfo,
   entityInfo,
   integrateSystem,
+  parseTimeCost,
+  isDeveloper,
   onSelectParseInfo,
   onSwitchEntity,
   onFiltersChange,
   onDateInfoChange,
+  onRefresh,
 }) => {
   const prefixCls = `${PREFIX_CLS}-item`;
 
@@ -66,7 +72,15 @@ const ParseTip: React.FC<Props> = ({
   }
 
   if (parseTip) {
-    return getNode('意图解析失败', parseTip);
+    return getNode(
+      <>
+        意图解析失败
+        {parseTimeCost && isDeveloper && (
+          <span className={`${prefixCls}-title-tip`}>(耗时: {parseTimeCost}ms)</span>
+        )}
+      </>,
+      parseTip
+    );
   }
 
   if (parseInfoOptions.length === 0) {
@@ -103,7 +117,6 @@ const ParseTip: React.FC<Props> = ({
 
   const getTipNode = () => {
     const dimensionItems = dimensions?.filter(item => item.type === 'DIMENSION');
-    const metric = metrics?.[0];
 
     const itemValueClass = `${prefixCls}-tip-item-value`;
     const entityId = dimensionFilters?.length > 0 ? dimensionFilters[0].value : undefined;
@@ -117,14 +130,14 @@ const ParseTip: React.FC<Props> = ({
 
     return (
       <div className={`${prefixCls}-tip-content`}>
-        {!!agentType && queryMode !== 'LLM_S2QL' ? (
+        {!!agentType && queryMode !== 'LLM_S2SQL' ? (
           <div className={`${prefixCls}-tip-item`}>
             将由{agentType === 'plugin' ? '插件' : '内置'}工具
             <span className={itemValueClass}>{agentName}</span>来解答
           </div>
         ) : (
           <>
-            {(queryMode?.includes('ENTITY') || queryMode === 'LLM_S2QL') &&
+            {(queryMode?.includes('ENTITY') || queryMode === 'LLM_S2SQL') &&
             typeof entityId === 'string' &&
             !!entityAlias &&
             !!entityName ? (
@@ -139,21 +152,24 @@ const ParseTip: React.FC<Props> = ({
               </div>
             )}
             {!queryMode?.includes('ENTITY') &&
-              metric &&
+              metrics &&
+              metrics.length > 0 &&
               !dimensions?.some(item => item.bizName?.includes('_id')) && (
                 <div className={`${prefixCls}-tip-item`}>
                   <div className={`${prefixCls}-tip-item-name`}>指标：</div>
-                  <div className={itemValueClass}>{metric.name}</div>
+                  <div className={itemValueClass}>
+                    {metrics.map(metric => metric.name).join('、')}
+                  </div>
                 </div>
               )}
-            {['METRIC_GROUPBY', 'METRIC_ORDERBY', 'ENTITY_DETAIL', 'LLM_S2QL'].includes(
+            {['METRIC_GROUPBY', 'METRIC_ORDERBY', 'ENTITY_DETAIL', 'LLM_S2SQL'].includes(
               queryMode!
             ) &&
               fields &&
               fields.length > 0 && (
                 <div className={`${prefixCls}-tip-item`}>
                   <div className={`${prefixCls}-tip-item-name`}>
-                    {queryMode === 'LLM_S2QL'
+                    {queryMode === 'LLM_S2SQL'
                       ? nativeQuery
                         ? '查询字段'
                         : '下钻维度'
@@ -218,18 +234,19 @@ const ParseTip: React.FC<Props> = ({
             />
           )}
         </div>
-        {filters?.map((filter: any) => (
+        {filters?.map((filter: any, index: number) => (
           <FilterItem
             modelId={modelId!}
             filters={dimensionFilters}
             filter={filter}
+            index={index}
             chatContext={currentParseInfo!}
             entityAlias={entityAlias}
             agentId={agentId}
             integrateSystem={integrateSystem}
             onFiltersChange={onFiltersChange}
             onSwitchEntity={onSwitchEntity}
-            key={filter.name}
+            key={`${filter.name}_${index}`}
           />
         ))}
       </div>
@@ -238,23 +255,39 @@ const ParseTip: React.FC<Props> = ({
 
   const getFiltersNode = () => {
     return (
-      <div className={`${prefixCls}-tip-item`}>
-        <div className={`${prefixCls}-tip-item-name`}>筛选条件：</div>
-        <div className={`${prefixCls}-tip-item-content`}>{getFilterContent(dimensionFilters)}</div>
-      </div>
+      <>
+        <div className={`${prefixCls}-tip-item`}>
+          <div className={`${prefixCls}-tip-item-name`}>筛选条件：</div>
+          <div className={`${prefixCls}-tip-item-content`}>
+            {getFilterContent(dimensionFilters)}
+          </div>
+        </div>
+        <Button className={`${prefixCls}-reload`} size="small" onClick={onRefresh}>
+          <ReloadOutlined />
+          重新查询
+        </Button>
+      </>
     );
   };
+
+  const { type: agentType } = properties || {};
 
   const tipNode = (
     <div className={`${prefixCls}-tip`}>
       {getTipNode()}
-      {getFiltersNode()}
+      {!(!!agentType && queryMode !== 'LLM_S2SQL') && getFiltersNode()}
     </div>
   );
 
   return getNode(
     <div className={`${prefixCls}-title-bar`}>
-      <div>意图解析{parseInfoOptions?.length > 1 ? '：' : ''}</div>
+      <div>
+        意图解析
+        {parseTimeCost && isDeveloper && (
+          <span className={`${prefixCls}-title-tip`}>(耗时: {parseTimeCost}ms)</span>
+        )}
+        {parseInfoOptions?.length > 1 ? '：' : ''}
+      </div>
       {parseInfoOptions?.length > 1 && (
         <div className={`${prefixCls}-content-options`}>
           {parseInfoOptions.map((parseInfo, index) => (

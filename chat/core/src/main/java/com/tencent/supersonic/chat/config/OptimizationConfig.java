@@ -8,7 +8,6 @@ import org.springframework.context.annotation.PropertySource;
 @Configuration
 @Data
 @PropertySource("classpath:optimization.properties")
-//@ComponentScan(basePackages = "com.tencent.supersonic.chat")
 public class OptimizationConfig {
 
     @Value("${one.detection.size}")
@@ -40,4 +39,24 @@ public class OptimizationConfig {
     @Value("${candidate.threshold}")
     private Double candidateThreshold;
 
+    @Value("${user.s2SQL.switch:false}")
+    private boolean useS2SqlSwitch;
+
+    @Value("${embedding.mapper.word.min:4}")
+    private int embeddingMapperWordMin;
+
+    @Value("${embedding.mapper.word.max:5}")
+    private int embeddingMapperWordMax;
+
+    @Value("${embedding.mapper.batch:50}")
+    private int embeddingMapperBatch;
+
+    @Value("${embedding.mapper.number:5}")
+    private int embeddingMapperNumber;
+
+    @Value("${embedding.mapper.round.number:10}")
+    private int embeddingMapperRoundNumber;
+
+    @Value("${embedding.mapper.distance.threshold:0.58}")
+    private Double embeddingMapperDistanceThreshold;
 }

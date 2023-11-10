@@ -2,12 +2,12 @@ package com.tencent.supersonic.semantic.query.parser.convert;
 
 
 import com.tencent.supersonic.common.pojo.Aggregator;
+import com.tencent.supersonic.common.pojo.Constants;
 import com.tencent.supersonic.common.pojo.enums.AggOperatorEnum;
-import com.tencent.supersonic.common.util.DateUtils;
+import com.tencent.supersonic.common.pojo.enums.TimeDimensionEnum;
 import com.tencent.supersonic.common.util.jsqlparser.SqlParserReplaceHelper;
 import com.tencent.supersonic.common.util.jsqlparser.SqlParserSelectFunctionHelper;
 import com.tencent.supersonic.common.util.jsqlparser.SqlParserSelectHelper;
-import com.tencent.supersonic.semantic.api.model.enums.TimeDimensionEnum;
 import com.tencent.supersonic.semantic.api.model.pojo.SchemaItem;
 import com.tencent.supersonic.semantic.api.model.request.SqlExecuteReq;
 import com.tencent.supersonic.semantic.api.model.response.DatabaseResp;
@@ -15,7 +15,7 @@ import com.tencent.supersonic.semantic.api.model.response.ModelSchemaResp;
 import com.tencent.supersonic.semantic.api.query.enums.AggOption;
 import com.tencent.supersonic.semantic.api.query.pojo.MetricTable;
 import com.tencent.supersonic.semantic.api.query.request.ParseSqlReq;
-import com.tencent.supersonic.semantic.api.query.request.QueryS2QLReq;
+import com.tencent.supersonic.semantic.api.query.request.QueryS2SQLReq;
 import com.tencent.supersonic.semantic.api.query.request.QueryStructReq;
 import com.tencent.supersonic.semantic.model.domain.Catalog;
 import com.tencent.supersonic.semantic.model.domain.ModelService;
@@ -46,7 +46,6 @@ import org.springframework.util.CollectionUtils;
 @Slf4j
 public class QueryReqConverter {
 
-    public static final String TABLE_PREFIX = "t_";
     @Autowired
     private ModelService domainService;
     @Autowired
@@ -57,7 +56,7 @@ public class QueryReqConverter {
     @Autowired
     private Catalog catalog;
 
-    public QueryStatement convert(QueryS2QLReq databaseReq, ModelSchemaResp modelSchemaResp) throws Exception {
+    public QueryStatement convert(QueryS2SQLReq databaseReq, ModelSchemaResp modelSchemaResp) throws Exception {
 
         if (Objects.isNull(modelSchemaResp)) {
             return new QueryStatement();
@@ -120,22 +119,23 @@ public class QueryReqConverter {
         return queryStatement;
     }
 
-    private AggOption getAggOption(QueryS2QLReq databaseReq) {
-        // if there is no group by in S2QL,set MetricTable's aggOption to "NATIVE"
-        // if there is count() in S2QL,set MetricTable's aggOption to "NATIVE"
+    private AggOption getAggOption(QueryS2SQLReq databaseReq) {
+        // if there is no group by in S2SQL,set MetricTable's aggOption to "NATIVE"
+        // if there is count() in S2SQL,set MetricTable's aggOption to "NATIVE"
         String sql = databaseReq.getSql();
         if (!SqlParserSelectHelper.hasGroupBy(sql)
-                || SqlParserSelectFunctionHelper.hasFunction(sql, "count")) {
+                || SqlParserSelectFunctionHelper.hasFunction(sql, "count")
+                || SqlParserSelectFunctionHelper.hasFunction(sql, "count_distinct")) {
             return AggOption.NATIVE;
         }
         return AggOption.DEFAULT;
     }
 
-    private void convertNameToBizName(QueryS2QLReq databaseReq, ModelSchemaResp modelSchemaResp) {
+    private void convertNameToBizName(QueryS2SQLReq databaseReq, ModelSchemaResp modelSchemaResp) {
         Map<String, String> fieldNameToBizNameMap = getFieldNameToBizNameMap(modelSchemaResp);
         String sql = databaseReq.getSql();
         log.info("convert name to bizName before:{}", sql);
-        String replaceFields = SqlParserReplaceHelper.replaceFields(sql, fieldNameToBizNameMap, false);
+        String replaceFields = SqlParserReplaceHelper.replaceFields(sql, fieldNameToBizNameMap, true);
         log.info("convert name to bizName after:{}", replaceFields);
         databaseReq.setSql(replaceFields);
     }
@@ -158,7 +158,7 @@ public class QueryReqConverter {
         return metrics;
     }
 
-    private void functionNameCorrector(QueryS2QLReq databaseReq) {
+    private void functionNameCorrector(QueryS2SQLReq databaseReq) {
         DatabaseResp database = catalog.getDatabaseByModelId(databaseReq.getModelId());
         if (Objects.isNull(database) || Objects.isNull(database.getType())) {
             return;
@@ -184,7 +184,14 @@ public class QueryReqConverter {
                 .flatMap(entry -> getPairStream(entry.getAlias(), entry.getName(), entry.getBizName()))
                 .collect(Collectors.toMap(a -> a.getLeft(), a -> a.getRight(), (k1, k2) -> k1));
 
-        dimensionResults.put(DateUtils.DATE_FIELD, TimeDimensionEnum.DAY.getName());
+        dimensionResults.put(TimeDimensionEnum.DAY.getChName(), TimeDimensionEnum.DAY.getName());
+        dimensionResults.put(TimeDimensionEnum.MONTH.getChName(), TimeDimensionEnum.MONTH.getName());
+        dimensionResults.put(TimeDimensionEnum.WEEK.getChName(), TimeDimensionEnum.WEEK.getName());
+
+        dimensionResults.put(TimeDimensionEnum.DAY.getName(), TimeDimensionEnum.DAY.getName());
+        dimensionResults.put(TimeDimensionEnum.MONTH.getName(), TimeDimensionEnum.MONTH.getName());
+        dimensionResults.put(TimeDimensionEnum.WEEK.getName(), TimeDimensionEnum.WEEK.getName());
+
         dimensionResults.putAll(metricResults);
         return dimensionResults;
     }
@@ -201,8 +208,9 @@ public class QueryReqConverter {
         return elements.stream();
     }
 
-    public void correctTableName(QueryS2QLReq databaseReq) {
-        String sql = SqlParserReplaceHelper.replaceTable(databaseReq.getSql(), TABLE_PREFIX + databaseReq.getModelId());
+    public void correctTableName(QueryS2SQLReq databaseReq) {
+        String sql = SqlParserReplaceHelper.replaceTable(databaseReq.getSql(),
+                Constants.TABLE_PREFIX + databaseReq.getModelId());
         databaseReq.setSql(sql);
     }
 

@@ -9,9 +9,10 @@ import com.tencent.supersonic.chat.api.pojo.SchemaElementMatch;
 import com.tencent.supersonic.chat.api.pojo.SchemaElementType;
 import com.tencent.supersonic.chat.api.pojo.response.QueryResult;
 import com.tencent.supersonic.chat.api.pojo.response.QueryState;
+import com.tencent.supersonic.chat.config.OptimizationConfig;
 import com.tencent.supersonic.chat.plugin.PluginManager;
 import com.tencent.supersonic.chat.query.QueryManager;
-import com.tencent.supersonic.chat.query.plugin.PluginSemanticQuery;
+import com.tencent.supersonic.chat.query.llm.LLMSemanticQuery;
 import com.tencent.supersonic.chat.utils.ComponentFactory;
 import com.tencent.supersonic.chat.utils.QueryReqBuilder;
 import com.tencent.supersonic.common.pojo.Aggregator;
@@ -20,6 +21,11 @@ import com.tencent.supersonic.common.pojo.enums.AggOperatorEnum;
 import com.tencent.supersonic.common.util.ContextUtils;
 import com.tencent.supersonic.semantic.api.model.response.QueryResultWithSchemaResp;
 import com.tencent.supersonic.semantic.api.query.request.QueryStructReq;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.commons.lang3.StringUtils;
@@ -27,18 +33,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 @Slf4j
 @Component
-public class MetricInterpretQuery extends PluginSemanticQuery {
+public class MetricInterpretQuery extends LLMSemanticQuery {
 
 
     public static final String QUERY_MODE = "METRIC_INTERPRET";
+
 
     public MetricInterpretQuery() {
         QueryManager.register(this);
@@ -51,10 +52,15 @@ public class MetricInterpretQuery extends PluginSemanticQuery {
 
     @Override
     public QueryResult execute(User user) throws SqlParseException {
-        QueryStructReq queryStructReq = QueryReqBuilder.buildStructReq(parseInfo);
-        fillAggregator(queryStructReq, parseInfo.getMetrics());
-        queryStructReq.setNativeQuery(true);
+        QueryStructReq queryStructReq = convertQueryStruct();
         SemanticInterpreter semanticInterpreter = ComponentFactory.getSemanticLayer();
+
+        OptimizationConfig optimizationConfig = ContextUtils.getBean(OptimizationConfig.class);
+        if (optimizationConfig.isUseS2SqlSwitch()) {
+            queryStructReq.setS2SQL(parseInfo.getSqlInfo().getS2SQL());
+            queryStructReq.setS2SQL(parseInfo.getSqlInfo().getQuerySQL());
+        }
+
         QueryResultWithSchemaResp queryResultWithSchemaResp = semanticInterpreter.queryByStruct(queryStructReq, user);
         String text = generateTableText(queryResultWithSchemaResp);
         Map<String, Object> properties = parseInfo.getProperties();
@@ -75,8 +81,20 @@ public class MetricInterpretQuery extends PluginSemanticQuery {
         return queryResult;
     }
 
+    @Override
+    public void initS2Sql(User user) {
+        initS2SqlByStruct();
+    }
+
+    protected QueryStructReq convertQueryStruct() {
+        QueryStructReq queryStructReq = QueryReqBuilder.buildStructReq(parseInfo);
+        fillAggregator(queryStructReq, parseInfo.getMetrics());
+        queryStructReq.setNativeQuery(true);
+        return queryStructReq;
+    }
+
     private String replaceText(String text, List<SchemaElementMatch> schemaElementMatches,
-                               Map<String, String> replacedMap) {
+            Map<String, String> replacedMap) {
         if (CollectionUtils.isEmpty(schemaElementMatches)) {
             return text;
         }
@@ -133,12 +151,12 @@ public class MetricInterpretQuery extends PluginSemanticQuery {
 
     public String fetchInterpret(String queryText, String dataText) {
         PluginManager pluginManager = ContextUtils.getBean(PluginManager.class);
-        LLmAnswerReq lLmAnswerReq = new LLmAnswerReq();
+        LLMAnswerReq lLmAnswerReq = new LLMAnswerReq();
         lLmAnswerReq.setQueryText(queryText);
         lLmAnswerReq.setPluginOutput(dataText);
         ResponseEntity<String> responseEntity = pluginManager.doRequest("answer_with_plugin_call",
                 JSONObject.toJSONString(lLmAnswerReq));
-        LLmAnswerResp lLmAnswerResp = JSONObject.parseObject(responseEntity.getBody(), LLmAnswerResp.class);
+        LLMAnswerResp lLmAnswerResp = JSONObject.parseObject(responseEntity.getBody(), LLMAnswerResp.class);
         if (lLmAnswerResp != null) {
             return lLmAnswerResp.getAssistantMessage();
         }

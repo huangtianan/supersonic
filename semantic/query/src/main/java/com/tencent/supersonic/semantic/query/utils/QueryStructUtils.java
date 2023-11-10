@@ -11,20 +11,23 @@ import com.tencent.supersonic.common.pojo.Aggregator;
 import com.tencent.supersonic.common.pojo.DateConf;
 import com.tencent.supersonic.common.pojo.DateConf.DateMode;
 import com.tencent.supersonic.common.pojo.enums.TypeEnums;
+import com.tencent.supersonic.common.util.DateModeUtils;
+import com.tencent.supersonic.common.util.SqlFilterUtils;
+import com.tencent.supersonic.common.util.StringUtil;
 import com.tencent.supersonic.common.util.jsqlparser.FilterExpression;
-import com.tencent.supersonic.common.util.jsqlparser.SqlParserSelectHelper;
-import com.tencent.supersonic.common.util.jsqlparser.SqlParserRemoveHelper;
 import com.tencent.supersonic.common.util.jsqlparser.SqlParserAddHelper;
+import com.tencent.supersonic.common.util.jsqlparser.SqlParserRemoveHelper;
+import com.tencent.supersonic.common.util.jsqlparser.SqlParserSelectHelper;
 import com.tencent.supersonic.semantic.api.model.pojo.ItemDateFilter;
 import com.tencent.supersonic.semantic.api.model.pojo.SchemaItem;
 import com.tencent.supersonic.semantic.api.model.request.ModelSchemaFilterReq;
 import com.tencent.supersonic.semantic.api.model.response.DimSchemaResp;
 import com.tencent.supersonic.semantic.api.model.response.DimensionResp;
-import com.tencent.supersonic.semantic.api.model.response.ItemDateResp;
+import com.tencent.supersonic.common.pojo.ItemDateResp;
 import com.tencent.supersonic.semantic.api.model.response.MetricResp;
 import com.tencent.supersonic.semantic.api.model.response.MetricSchemaResp;
 import com.tencent.supersonic.semantic.api.model.response.ModelSchemaResp;
-import com.tencent.supersonic.semantic.api.query.request.QueryS2QLReq;
+import com.tencent.supersonic.semantic.api.query.request.QueryS2SQLReq;
 import com.tencent.supersonic.semantic.api.query.request.QueryStructReq;
 import com.tencent.supersonic.semantic.model.domain.Catalog;
 import com.tencent.supersonic.semantic.model.domain.pojo.EngineTypeEnum;
@@ -66,23 +69,25 @@ public class QueryStructUtils {
         internalCols.addAll(internalTimeCols);
     }
 
-    private final DateUtils dateUtils;
+    private final DateModeUtils dateModeUtils;
     private final SqlFilterUtils sqlFilterUtils;
     private final Catalog catalog;
     @Value("${internal.metric.cnt.suffix:internal_cnt}")
     private String internalMetricNameSuffix;
     @Value("${metricParser.agg.mysql.lowVersion:5.7}")
     private String mysqlLowVersion;
+    @Value("${metricParser.agg.ck.lowVersion:20.4}")
+    private String ckLowVersion;
     @Autowired
     private SchemaService schemaService;
 
     private String variablePrefix = "'${";
 
     public QueryStructUtils(
-            DateUtils dateUtils,
+            DateModeUtils dateModeUtils,
             SqlFilterUtils sqlFilterUtils, Catalog catalog) {
 
-        this.dateUtils = dateUtils;
+        this.dateModeUtils = dateModeUtils;
         this.sqlFilterUtils = sqlFilterUtils;
         this.catalog = catalog;
     }
@@ -132,6 +137,12 @@ public class QueryStructUtils {
         if (Objects.isNull(dateInfo) || Objects.isNull(dateInfo.getDateMode())) {
             return "";
         }
+        if (dateInfo.getDateMode().equals(DateMode.RECENT)) {
+            if (dateInfo.getUnit() <= 0) {
+                return "";
+            }
+        }
+
         List<Long> dimensionIds = getDimensionIds(queryStructCmd);
         List<Long> metricIds = getMetricIds(queryStructCmd);
 
@@ -142,19 +153,19 @@ public class QueryStructUtils {
                 || Strings.isEmpty(dateDate.getStartDate())
                 && Strings.isEmpty(dateDate.getEndDate())) {
             if (dateInfo.getDateMode().equals(DateMode.LIST)) {
-                return dateUtils.listDateStr(dateDate, dateInfo);
+                return dateModeUtils.listDateStr(dateDate, dateInfo);
             }
             if (dateInfo.getDateMode().equals(DateMode.BETWEEN)) {
-                return dateUtils.betweenDateStr(dateDate, dateInfo);
+                return dateModeUtils.betweenDateStr(dateDate, dateInfo);
             }
-            if (dateUtils.hasAvailableDataMode(dateInfo)) {
-                return dateUtils.hasDataModeStr(dateDate, dateInfo);
+            if (dateModeUtils.hasAvailableDataMode(dateInfo)) {
+                return dateModeUtils.hasDataModeStr(dateDate, dateInfo);
             }
 
-            return dateUtils.defaultRecentDateInfo(queryStructCmd.getDateInfo());
+            return dateModeUtils.defaultRecentDateInfo(queryStructCmd.getDateInfo());
         }
         log.info("dateDate:{}", dateDate);
-        return dateUtils.getDateWhereStr(dateInfo, dateDate);
+        return dateModeUtils.getDateWhereStr(dateInfo, dateDate);
     }
 
 
@@ -172,9 +183,9 @@ public class QueryStructUtils {
             return whereClauseFromFilter;
         } else if (Strings.isNotEmpty(whereFromDate) && Strings.isEmpty(whereClauseFromFilter)) {
             return whereFromDate;
-        } else if (Strings.isEmpty(whereFromDate) && Strings.isEmpty(whereClauseFromFilter)) {
+        } else if (Objects.isNull(whereFromDate) && Strings.isEmpty(whereClauseFromFilter)) {
             log.info("the current date information is empty, enter the date initialization logic");
-            return dateUtils.defaultRecentDateInfo(queryStructCmd.getDateInfo());
+            return dateModeUtils.defaultRecentDateInfo(queryStructCmd.getDateInfo());
         }
         return whereClauseFromFilter;
     }
@@ -188,8 +199,8 @@ public class QueryStructUtils {
         return resNameEnSet;
     }
 
-    public Set<String> getResName(QueryS2QLReq queryS2QLReq) {
-        Set<String> resNameSet = SqlParserSelectHelper.getAllFields(queryS2QLReq.getSql())
+    public Set<String> getResName(QueryS2SQLReq queryS2SQLReq) {
+        Set<String> resNameSet = SqlParserSelectHelper.getAllFields(queryS2SQLReq.getSql())
                 .stream().collect(Collectors.toSet());
         return resNameSet;
     }
@@ -199,11 +210,11 @@ public class QueryStructUtils {
         return resNameEnSet.stream().filter(res -> !internalCols.contains(res)).collect(Collectors.toSet());
     }
 
-    public Set<String> getResNameEnExceptInternalCol(QueryS2QLReq queryS2QLReq, User user) {
-        Set<String> resNameSet = getResName(queryS2QLReq);
+    public Set<String> getResNameEnExceptInternalCol(QueryS2SQLReq queryS2SQLReq, User user) {
+        Set<String> resNameSet = getResName(queryS2SQLReq);
         Set<String> resNameEnSet = new HashSet<>();
         ModelSchemaFilterReq filter = new ModelSchemaFilterReq();
-        List<Long> modelIds = Lists.newArrayList(queryS2QLReq.getModelId());
+        List<Long> modelIds = Lists.newArrayList(queryS2SQLReq.getModelId());
         filter.setModelIds(modelIds);
         List<ModelSchemaResp> modelSchemaRespList = schemaService.fetchModelSchema(filter, user);
         if (!CollectionUtils.isEmpty(modelSchemaRespList)) {
@@ -234,8 +245,8 @@ public class QueryStructUtils {
         return resNameEnSet.stream().filter(res -> !internalCols.contains(res)).collect(Collectors.toSet());
     }
 
-    public Set<String> getFilterResNameEnExceptInternalCol(QueryS2QLReq queryS2QLReq) {
-        String sql = queryS2QLReq.getSql();
+    public Set<String> getFilterResNameEnExceptInternalCol(QueryS2SQLReq queryS2SQLReq) {
+        String sql = queryS2SQLReq.getSql();
         Set<String> resNameEnSet = SqlParserSelectHelper.getWhereFields(sql).stream().collect(Collectors.toSet());
         return resNameEnSet.stream().filter(res -> !internalCols.contains(res)).collect(Collectors.toSet());
     }
@@ -263,6 +274,11 @@ public class QueryStructUtils {
                 mysqlLowVersion)) {
             return false;
         }
+        if (engineTypeEnum.equals(EngineTypeEnum.CLICKHOUSE) && Objects.nonNull(version)
+                && StringUtil.compareVersion(version,
+                ckLowVersion) < 0) {
+            return false;
+        }
         return true;
     }
 
@@ -275,19 +291,19 @@ public class QueryStructUtils {
     public String generateZipperWhere(QueryStatement queryStatement, QueryStructReq queryStructReq) {
         if (Objects.nonNull(queryStatement.getParseSqlReq().getSql())) {
             String sql = SqlParserRemoveHelper.removeWhere(queryStatement.getParseSqlReq().getSql(),
-                    dateUtils.getDateCol());
+                    dateModeUtils.getDateCol());
             if (!CollectionUtils.isEmpty(queryStatement.getMetricReq().getDimensions())) {
                 List<String> dimension = queryStatement.getMetricReq().getDimensions().stream()
-                        .filter(d -> !dateUtils.getDateCol().contains(d.toLowerCase())).collect(
+                        .filter(d -> !dateModeUtils.getDateCol().contains(d.toLowerCase())).collect(
                                 Collectors.toList());
-                dimension.add(dateUtils.getDateColBegin(queryStructReq.getDateInfo()));
-                dimension.add(dateUtils.getDateColEnd(queryStructReq.getDateInfo()));
+                dimension.add(dateModeUtils.getDateColBegin(queryStructReq.getDateInfo()));
+                dimension.add(dateModeUtils.getDateColEnd(queryStructReq.getDateInfo()));
                 queryStatement.getMetricReq().setDimensions(dimension);
             }
             return SqlParserAddHelper.addWhere(sql,
                     SqlParserSelectHelper.getTimeFilter(queryStatement.getTimeRanges(),
-                            dateUtils.getDateColBegin(queryStructReq.getDateInfo()),
-                            dateUtils.getDateColEnd(queryStructReq.getDateInfo())));
+                            dateModeUtils.getDateColBegin(queryStructReq.getDateInfo()),
+                            dateModeUtils.getDateColEnd(queryStructReq.getDateInfo())));
         }
         return queryStatement.getSql();
     }
@@ -298,7 +314,7 @@ public class QueryStructUtils {
         List<String> wheres = new ArrayList<>();
         if (!CollectionUtils.isEmpty(timeRanges)) {
             for (ImmutablePair<String, String> range : timeRanges) {
-                String strWhere = dateUtils.getDateWhereStr(queryStructCmd.getDateInfo(), range);
+                String strWhere = dateModeUtils.getDateWhereStr(queryStructCmd.getDateInfo(), range);
                 if (!strWhere.isEmpty()) {
                     wheres.add(strWhere);
                 }
@@ -329,11 +345,11 @@ public class QueryStructUtils {
                 }
                 switch (dateConf.getPeriod()) {
                     case DAY:
-                        return dateUtils.recentDay(dateDate, dateConf);
+                        return dateModeUtils.recentDay(dateDate, dateConf);
                     case WEEK:
-                        return dateUtils.recentWeek(dateDate, dateConf);
+                        return dateModeUtils.recentWeek(dateDate, dateConf);
                     case MONTH:
-                        List<ImmutablePair<String, String>> rets = dateUtils.recentMonth(dateDate, dateConf);
+                        List<ImmutablePair<String, String>> rets = dateModeUtils.recentMonth(dateDate, dateConf);
                         Optional<String> minBegins = rets.stream().map(i -> i.left).sorted().findFirst();
                         Optional<String> maxBegins = rets.stream().map(i -> i.right).sorted(Comparator.reverseOrder())
                                 .findFirst();
@@ -379,13 +395,13 @@ public class QueryStructUtils {
                 }
                 switch (dateConf.getPeriod()) {
                     case DAY:
-                        ret.add(dateUtils.recentDay(dateDate, dateConf));
+                        ret.add(dateModeUtils.recentDay(dateDate, dateConf));
                         break;
                     case WEEK:
-                        ret.add(dateUtils.recentWeek(dateDate, dateConf));
+                        ret.add(dateModeUtils.recentWeek(dateDate, dateConf));
                         break;
                     case MONTH:
-                        List<ImmutablePair<String, String>> rets = dateUtils.recentMonth(dateDate, dateConf);
+                        List<ImmutablePair<String, String>> rets = dateModeUtils.recentMonth(dateDate, dateConf);
                         ret.addAll(rets);
                         break;
                     default:
@@ -418,10 +434,10 @@ public class QueryStructUtils {
                 if (Objects.isNull(f.getFieldName()) || !internalCols.contains(f.getFieldName().toLowerCase())) {
                     continue;
                 }
-                if (Objects.isNull(f.getFieldValue()) || !dateUtils.isDateStr(f.getFieldValue().toString())) {
+                if (Objects.isNull(f.getFieldValue()) || !dateModeUtils.isDateStr(f.getFieldValue().toString())) {
                     continue;
                 }
-                period = dateUtils.getPeriodByCol(f.getFieldName().toLowerCase());
+                period = dateModeUtils.getPeriodByCol(f.getFieldName().toLowerCase());
                 if ("".equals(period)) {
                     continue;
                 }
@@ -457,7 +473,7 @@ public class QueryStructUtils {
     }
 
     public List<String> getDateCol() {
-        return dateUtils.getDateCol();
+        return dateModeUtils.getDateCol();
     }
 
     public String getVariablePrefix() {

@@ -133,6 +133,12 @@
     column-gap: 10px;
   }
 
+  &-title-tip {
+    margin-left: 2px;
+    color: var(--text-color-third);
+    font-weight: normal;
+  }
+
   &-step-title {
     font-weight: 500;
     color: var(--text-color);
@@ -140,6 +146,7 @@
 
   &-reload {
     margin-left: 2px;
+    width: fit-content;
     font-weight: normal;
     color: var(--text-color-secondary);
     font-size: 13px !important;
@@ -439,6 +446,26 @@
     border: 0 !important;
     color: var(--chat-blue);
     cursor: pointer;
+  }
+
+  &-schema-row {
+    display: flex;
+    margin-top: 10px;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  &-schema-title {
+    width: 50px;
+    color: var(--text-color);
+    font-weight: 500;
+  }
+
+  &-schema-content {
+    flex: 1;
+    color: var(--text-color);
   }
 }
 

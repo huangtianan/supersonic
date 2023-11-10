@@ -26,3 +26,17 @@ export enum DictTaskState {
   SUCCESS = '成功',
   UNKNOWN = '未知',
 }
+
+export enum StatusEnum {
+  INITIALIZED = 0,
+  ONLINE = 1,
+  OFFLINE = 2,
+  DELETED = 3,
+  UNKNOWN = -1,
+}
+
+export enum OperatorEnum {
+  EQUAL = '=',
+  IN = 'IN',
+  LIKE = 'LIKE',
+}

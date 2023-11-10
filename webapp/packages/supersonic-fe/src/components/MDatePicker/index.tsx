@@ -21,16 +21,20 @@ import { ProCard } from '@ant-design/pro-card';
 type Props = {
   disabledAdvanceSetting?: boolean;
   initialValues?: any;
+  showCurrentDataRangeString?: boolean;
   onDateRangeChange: (value: string[], from: any) => void;
   onDateRangeTypeChange?: (dateRangeType: DateRangeType) => void;
+  onInit?: (params: { dateStringRange: string[] }) => void;
 };
 
 const { CheckableTag } = Tag;
 const MDatePicker: React.FC<Props> = ({
   disabledAdvanceSetting,
   initialValues,
+  showCurrentDataRangeString = true,
   onDateRangeChange,
   onDateRangeTypeChange,
+  onInit,
 }: any) => {
   const getDynamicDefaultConfig = (dateRangeType: DateRangeType) => {
     const dynamicDefaultConfig = {
@@ -149,6 +153,10 @@ const MDatePicker: React.FC<Props> = ({
       }
     }
   }
+  useEffect(() => {
+    onInit?.({ dateRange: currentDateRange });
+  }, []);
+
   useEffect(() => {
     setSelectedDateRangeString(getSelectedDateRangeString());
   }, [staticParams, dynamicParams, currentDateRange]);
@@ -420,11 +428,12 @@ const MDatePicker: React.FC<Props> = ({
           }
         />
       </Popover>
-      {!(
-        currentDateSettingType === DateSettingType.STATIC &&
-        currentDateMode === DateMode.RANGE &&
-        dateRangeType === DateRangeType.DAY
-      ) && <div style={{ color: '#0e73ff' }}>当前时间: {selectedDateRangeString}</div>}
+      {showCurrentDataRangeString &&
+        !(
+          currentDateSettingType === DateSettingType.STATIC &&
+          currentDateMode === DateMode.RANGE &&
+          dateRangeType === DateRangeType.DAY
+        ) && <div style={{ color: '#0e73ff' }}>当前时间: {selectedDateRangeString}</div>}
     </Space>
   );
 };

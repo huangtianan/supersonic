@@ -4,6 +4,8 @@ package com.tencent.supersonic.chat.service.impl;
 import com.hankcs.hanlp.seg.common.Term;
 import com.tencent.supersonic.auth.api.authentication.pojo.User;
 import com.tencent.supersonic.chat.api.component.SchemaMapper;
+import com.tencent.supersonic.chat.api.component.SemanticCorrector;
+import com.tencent.supersonic.chat.api.component.SemanticInterpreter;
 import com.tencent.supersonic.chat.api.component.SemanticParser;
 import com.tencent.supersonic.chat.api.component.SemanticQuery;
 import com.tencent.supersonic.chat.api.pojo.ChatContext;
@@ -13,32 +15,35 @@ import com.tencent.supersonic.chat.api.pojo.request.DimensionValueReq;
 import com.tencent.supersonic.chat.api.pojo.request.ExecuteQueryReq;
 import com.tencent.supersonic.chat.api.pojo.request.QueryDataReq;
 import com.tencent.supersonic.chat.api.pojo.request.QueryFilter;
+import com.tencent.supersonic.chat.api.pojo.request.QueryFilters;
 import com.tencent.supersonic.chat.api.pojo.request.QueryReq;
 import com.tencent.supersonic.chat.api.pojo.request.SolvedQueryReq;
 import com.tencent.supersonic.chat.api.pojo.response.EntityInfo;
 import com.tencent.supersonic.chat.api.pojo.response.ParseResp;
 import com.tencent.supersonic.chat.api.pojo.response.QueryResult;
 import com.tencent.supersonic.chat.api.pojo.response.QueryState;
-import com.tencent.supersonic.chat.parser.llm.s2ql.ParseResult;
 import com.tencent.supersonic.chat.persistence.dataobject.ChatParseDO;
 import com.tencent.supersonic.chat.persistence.dataobject.ChatQueryDO;
 import com.tencent.supersonic.chat.persistence.dataobject.CostType;
 import com.tencent.supersonic.chat.persistence.dataobject.StatisticsDO;
 import com.tencent.supersonic.chat.query.QueryManager;
 import com.tencent.supersonic.chat.query.QuerySelector;
-import com.tencent.supersonic.chat.query.llm.s2ql.LLMResp;
-import com.tencent.supersonic.chat.query.llm.s2ql.S2QLQuery;
+import com.tencent.supersonic.chat.query.llm.s2sql.S2SQLQuery;
 import com.tencent.supersonic.chat.responder.execute.ExecuteResponder;
 import com.tencent.supersonic.chat.responder.parse.ParseResponder;
 import com.tencent.supersonic.chat.service.ChatService;
+import com.tencent.supersonic.chat.service.ParseInfoService;
 import com.tencent.supersonic.chat.service.QueryService;
 import com.tencent.supersonic.chat.service.SemanticService;
 import com.tencent.supersonic.chat.service.StatisticsService;
+import com.tencent.supersonic.chat.service.TimeCost;
 import com.tencent.supersonic.chat.utils.ComponentFactory;
 import com.tencent.supersonic.chat.utils.SolvedQueryManager;
-import com.tencent.supersonic.common.pojo.Constants;
+import com.tencent.supersonic.common.pojo.DateConf;
 import com.tencent.supersonic.common.pojo.QueryColumn;
 import com.tencent.supersonic.common.pojo.enums.DictWordType;
+import com.tencent.supersonic.common.pojo.enums.FilterOperatorEnum;
+import com.tencent.supersonic.common.pojo.enums.TimeDimensionEnum;
 import com.tencent.supersonic.common.util.ContextUtils;
 import com.tencent.supersonic.common.util.DateUtils;
 import com.tencent.supersonic.common.util.JsonUtil;
@@ -47,16 +52,14 @@ import com.tencent.supersonic.common.util.jsqlparser.SqlParserAddHelper;
 import com.tencent.supersonic.common.util.jsqlparser.SqlParserRemoveHelper;
 import com.tencent.supersonic.common.util.jsqlparser.SqlParserReplaceHelper;
 import com.tencent.supersonic.common.util.jsqlparser.SqlParserSelectHelper;
-import com.tencent.supersonic.knowledge.dictionary.MapResult;
+import com.tencent.supersonic.knowledge.dictionary.HanlpMapResult;
 import com.tencent.supersonic.knowledge.dictionary.MultiCustomDictionary;
 import com.tencent.supersonic.knowledge.service.SearchService;
 import com.tencent.supersonic.knowledge.utils.HanlpHelper;
 import com.tencent.supersonic.knowledge.utils.NatureHelper;
-import com.tencent.supersonic.semantic.api.model.response.ExplainResp;
 import com.tencent.supersonic.semantic.api.model.response.QueryResultWithSchemaResp;
-import com.tencent.supersonic.semantic.api.query.enums.FilterOperatorEnum;
+import com.tencent.supersonic.semantic.api.query.request.QueryStructReq;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -100,6 +103,8 @@ public class QueryServiceImpl implements QueryService {
     private StatisticsService statisticsService;
     @Autowired
     private SolvedQueryManager solvedQueryManager;
+    @Autowired
+    private ParseInfoService parseInfoService;
 
     @Value("${time.threshold: 100}")
     private Integer timeThreshold;
@@ -109,21 +114,26 @@ public class QueryServiceImpl implements QueryService {
     private QuerySelector querySelector = ComponentFactory.getQuerySelector();
     private List<ParseResponder> parseResponders = ComponentFactory.getParseResponders();
     private List<ExecuteResponder> executeResponders = ComponentFactory.getExecuteResponders();
+    private List<SemanticCorrector> semanticCorrectors = ComponentFactory.getSqlCorrections();
 
     @Override
     public ParseResp performParsing(QueryReq queryReq) {
         Long parseTime = System.currentTimeMillis();
+        //1. build queryContext and chatContext
         QueryContext queryCtx = new QueryContext(queryReq);
         // in order to support multi-turn conversation, chat context is needed
         ChatContext chatCtx = chatService.getOrCreateContext(queryReq.getChatId());
         List<StatisticsDO> timeCostDOList = new ArrayList<>();
+
+        //2. mapper
         schemaMappers.stream().forEach(mapper -> {
             Long startTime = System.currentTimeMillis();
             mapper.map(queryCtx);
             timeCostDOList.add(StatisticsDO.builder().cost((int) (System.currentTimeMillis() - startTime))
                     .interfaceName(mapper.getClass().getSimpleName()).type(CostType.MAPPER.getType()).build());
-            log.info("{} result:{}", mapper.getClass().getSimpleName(), JsonUtil.toString(queryCtx));
         });
+
+        //3. parser
         semanticParsers.stream().forEach(parser -> {
             Long startTime = System.currentTimeMillis();
             parser.parse(queryCtx, chatCtx);
@@ -131,18 +141,28 @@ public class QueryServiceImpl implements QueryService {
                     .interfaceName(parser.getClass().getSimpleName()).type(CostType.PARSER.getType()).build());
             log.info("{} result:{}", parser.getClass().getSimpleName(), JsonUtil.toString(queryCtx));
         });
+
+        //4. corrector
+        List<SemanticQuery> candidateQueries = queryCtx.getCandidateQueries();
+        if (CollectionUtils.isNotEmpty(candidateQueries)) {
+            for (SemanticQuery semanticQuery : candidateQueries) {
+                semanticQuery.initS2Sql(queryReq.getUser());
+                semanticCorrectors.stream().forEach(correction -> {
+                    correction.correct(queryReq, semanticQuery.getParseInfo());
+                });
+            }
+        }
+
+        //5. generate parsing results.
         ParseResp parseResult;
         List<ChatParseDO> chatParseDOS = Lists.newArrayList();
-        if (queryCtx.getCandidateQueries().size() > 0) {
-            log.debug("pick before [{}]", queryCtx.getCandidateQueries().stream().collect(
-                    Collectors.toList()));
-            List<SemanticQuery> selectedQueries = querySelector.select(queryCtx.getCandidateQueries(), queryReq);
-            log.debug("pick after [{}]", selectedQueries.stream().collect(
-                    Collectors.toList()));
+        if (candidateQueries.size() > 0) {
+            List<SemanticQuery> selectedQueries = querySelector.select(candidateQueries, queryReq);
+            List<SemanticParseInfo> selectedParses = parseInfoService.sortParseInfo(selectedQueries);
+            List<SemanticParseInfo> candidateParses = parseInfoService.sortParseInfo(candidateQueries);
+            candidateParses = parseInfoService.getTopCandidateParseInfo(selectedParses, candidateParses);
+            candidateQueries.forEach(semanticQuery -> parseInfoService.updateParseInfo(semanticQuery.getParseInfo()));
 
-            List<SemanticParseInfo> selectedParses = convertParseInfo(selectedQueries);
-            List<SemanticParseInfo> candidateParses = convertParseInfo(queryCtx.getCandidateQueries());
-            candidateParses = getTop5CandidateParseInfo(selectedParses, candidateParses);
             parseResult = ParseResp.builder()
                     .chatId(queryReq.getChatId())
                     .queryText(queryReq.getQueryText())
@@ -150,7 +170,7 @@ public class QueryServiceImpl implements QueryService {
                     .selectedParses(selectedParses)
                     .candidateParses(candidateParses)
                     .build();
-            chatParseDOS = chatService.batchAddParse(chatCtx, queryReq, parseResult, candidateParses, selectedParses);
+            chatParseDOS = chatService.batchAddParse(chatCtx, queryReq, parseResult);
         } else {
             parseResult = ParseResp.builder()
                     .chatId(queryReq.getChatId())
@@ -158,6 +178,7 @@ public class QueryServiceImpl implements QueryService {
                     .state(ParseResp.ParseState.FAILED)
                     .build();
         }
+        //6. responders
         for (ParseResponder parseResponder : parseResponders) {
             Long startTime = System.currentTimeMillis();
             parseResponder.fillResponse(parseResult, queryCtx, chatParseDOS);
@@ -175,41 +196,11 @@ public class QueryServiceImpl implements QueryService {
         return parseResult;
     }
 
-    private List<SemanticParseInfo> convertParseInfo(List<SemanticQuery> semanticQueries) {
-        return semanticQueries.stream()
-                .map(SemanticQuery::getParseInfo)
-                .sorted(Comparator.comparingDouble(SemanticParseInfo::getScore).reversed())
-                .collect(Collectors.toList());
-    }
-
-    private List<SemanticParseInfo> getTop5CandidateParseInfo(List<SemanticParseInfo> selectedParses,
-            List<SemanticParseInfo> candidateParses) {
-        if (CollectionUtils.isEmpty(selectedParses) || CollectionUtils.isEmpty(candidateParses)) {
-            return candidateParses;
-        }
-        int selectParseSize = selectedParses.size();
-        Set<Double> selectParseScoreSet = selectedParses.stream()
-                .map(SemanticParseInfo::getScore).collect(Collectors.toSet());
-        int candidateParseSize = 5 - selectParseSize;
-        candidateParses = candidateParses.stream()
-                .filter(candidateParse -> !selectParseScoreSet.contains(candidateParse.getScore()))
-                .collect(Collectors.toList());
-        SemanticParseInfo semanticParseInfo = selectedParses.get(0);
-        Long modelId = semanticParseInfo.getModelId();
-        if (modelId == null || modelId <= 0) {
-            return candidateParses;
-        }
-        return candidateParses.stream()
-                .sorted(Comparator.comparing(parse -> !parse.getModelId().equals(modelId)))
-                .limit(candidateParseSize)
-                .collect(Collectors.toList());
-    }
 
     @Override
+    @TimeCost
     public QueryResult performExecution(ExecuteQueryReq queryReq) throws Exception {
-        Long executeTime = System.currentTimeMillis();
-        ChatParseDO chatParseDO = chatService.getParseInfo(queryReq.getQueryId(),
-                queryReq.getParseId());
+        ChatParseDO chatParseDO = chatService.getParseInfo(queryReq.getQueryId(), queryReq.getParseId());
         ChatQueryDO chatQueryDO = chatService.getLastQuery(queryReq.getChatId());
         List<StatisticsDO> timeCostDOList = new ArrayList<>();
         SemanticParseInfo parseInfo = JsonUtil.toObject(chatParseDO.getParseInfo(), SemanticParseInfo.class);
@@ -240,18 +231,18 @@ public class QueryServiceImpl implements QueryService {
             }
             chatCtx.setQueryText(queryReq.getQueryText());
             chatCtx.setUser(queryReq.getUser().getName());
-            chatService.updateQuery(queryReq.getQueryId(), queryResult, chatCtx);
             for (ExecuteResponder executeResponder : executeResponders) {
                 executeResponder.fillResponse(queryResult, parseInfo, queryReq);
             }
+            chatService.updateQuery(queryReq.getQueryId(), queryResult, chatCtx);
         } else {
             chatService.deleteChatQuery(queryReq.getQueryId());
         }
-        queryResult.setQueryTimeCost(System.currentTimeMillis() - executeTime);
         return queryResult;
     }
 
-    public void saveInfo(List<StatisticsDO> timeCostDOList,
+    // save time cost data
+    private void saveInfo(List<StatisticsDO> timeCostDOList,
             String queryText, Long queryId,
             String userName, Long chatId) {
         List<StatisticsDO> list = timeCostDOList.stream()
@@ -282,82 +273,44 @@ public class QueryServiceImpl implements QueryService {
     }
 
     @Override
-    public QueryResult executeQuery(QueryReq queryReq) throws Exception {
-        QueryContext queryCtx = new QueryContext(queryReq);
-        // in order to support multi-turn conversation, chat context is needed
-        ChatContext chatCtx = chatService.getOrCreateContext(queryReq.getChatId());
-
-        schemaMappers.stream().forEach(mapper -> {
-            mapper.map(queryCtx);
-            log.info("{} result:{}", mapper.getClass().getSimpleName(), JsonUtil.toString(queryCtx));
-        });
-
-        semanticParsers.stream().forEach(parser -> {
-            parser.parse(queryCtx, chatCtx);
-            log.info("{} result:{}", parser.getClass().getSimpleName(), JsonUtil.toString(queryCtx));
-        });
-
-        QueryResult queryResult = null;
-        if (queryCtx.getCandidateQueries().size() > 0) {
-            log.info("pick before [{}]", queryCtx.getCandidateQueries().stream().collect(
-                    Collectors.toList()));
-            List<SemanticQuery> selectedQueries = querySelector.select(queryCtx.getCandidateQueries(), queryReq);
-            log.info("pick after [{}]", selectedQueries.stream().collect(
-                    Collectors.toList()));
-
-            SemanticQuery semanticQuery = selectedQueries.get(0);
-            queryResult = semanticQuery.execute(queryReq.getUser());
-            if (queryResult != null) {
-                chatCtx.setQueryText(queryReq.getQueryText());
-                // update chat context after a successful semantic query
-                if (queryReq.isSaveAnswer() && QueryState.SUCCESS.equals(queryResult.getQueryState())) {
-                    chatCtx.setParseInfo(semanticQuery.getParseInfo());
-                    chatService.updateContext(chatCtx);
-                }
-                queryResult.setChatContext(chatCtx.getParseInfo());
-                chatService.addQuery(queryResult, chatCtx);
-            }
-        }
-
-        return queryResult;
-    }
-
-    @Override
     public SemanticParseInfo queryContext(QueryReq queryCtx) {
         ChatContext context = chatService.getOrCreateContext(queryCtx.getChatId());
         return context.getParseInfo();
     }
 
+    //mainly used for executing after revising filters,for example:"fans_cnt>=100000"->"fans_cnt>500000",
+    //"style='流行'"->"style in ['流行','爱国']"
     @Override
+    @TimeCost
     public QueryResult executeDirectQuery(QueryDataReq queryData, User user) throws SqlParseException {
         ChatParseDO chatParseDO = chatService.getParseInfo(queryData.getQueryId(),
                 queryData.getParseId());
         SemanticParseInfo parseInfo = getSemanticParseInfo(queryData, chatParseDO);
 
         SemanticQuery semanticQuery = QueryManager.createQuery(parseInfo.getQueryMode());
-
-        if (S2QLQuery.QUERY_MODE.equals(parseInfo.getQueryMode())) {
+        semanticQuery.setParseInfo(parseInfo);
+        if (S2SQLQuery.QUERY_MODE.equals(parseInfo.getQueryMode())) {
             Map<String, Map<String, String>> filedNameToValueMap = new HashMap<>();
             Map<String, Map<String, String>> havingFiledNameToValueMap = new HashMap<>();
-            String json = JsonUtil.toString(parseInfo.getProperties().get(Constants.CONTEXT));
-            ParseResult parseResult = JsonUtil.toObject(json, ParseResult.class);
-            LLMResp llmResp = parseResult.getLlmResp();
-            String correctorSql = llmResp.getCorrectorSql();
+
+            String correctorSql = parseInfo.getSqlInfo().getCorrectS2SQL();
             log.info("correctorSql before replacing:{}", correctorSql);
+            // get where filter and having filter
             List<FilterExpression> whereExpressionList = SqlParserSelectHelper.getWhereExpressions(correctorSql);
             List<FilterExpression> havingExpressionList = SqlParserSelectHelper.getHavingExpressions(correctorSql);
             List<Expression> addWhereConditions = new ArrayList<>();
             List<Expression> addHavingConditions = new ArrayList<>();
             Set<String> removeWhereFieldNames = new HashSet<>();
             Set<String> removeHavingFieldNames = new HashSet<>();
-            updateFilters(filedNameToValueMap, whereExpressionList, queryData.getDimensionFilters(),
+            // replace where filter
+            updateFilters(whereExpressionList, queryData.getDimensionFilters(),
                     parseInfo.getDimensionFilters(), addWhereConditions, removeWhereFieldNames);
             updateDateInfo(queryData, parseInfo, filedNameToValueMap,
                     whereExpressionList, addWhereConditions, removeWhereFieldNames);
             correctorSql = SqlParserReplaceHelper.replaceValue(correctorSql, filedNameToValueMap);
             correctorSql = SqlParserRemoveHelper.removeWhereCondition(correctorSql, removeWhereFieldNames);
-
-            updateFilters(havingFiledNameToValueMap, havingExpressionList, queryData.getDimensionFilters(),
+            // replace having filter
+            updateFilters(havingExpressionList, queryData.getDimensionFilters(),
                     parseInfo.getDimensionFilters(), addHavingConditions, removeHavingFieldNames);
             correctorSql = SqlParserReplaceHelper.replaceHavingValue(correctorSql, havingFiledNameToValueMap);
             correctorSql = SqlParserRemoveHelper.removeHavingCondition(correctorSql, removeHavingFieldNames);
@@ -366,19 +319,25 @@ public class QueryServiceImpl implements QueryService {
             correctorSql = SqlParserAddHelper.addHaving(correctorSql, addHavingConditions);
 
             log.info("correctorSql after replacing:{}", correctorSql);
-            llmResp.setCorrectorSql(correctorSql);
-            parseResult.setLlmResp(llmResp);
-            Map<String, Object> properties = new HashMap<>();
-            properties.put(Constants.CONTEXT, parseResult);
-            parseInfo.setProperties(properties);
-            parseInfo.getSqlInfo().setLogicSql(correctorSql);
+            parseInfo.getSqlInfo().setCorrectS2SQL(correctorSql);
             semanticQuery.setParseInfo(parseInfo);
-            ExplainResp explain = semanticQuery.explain(user);
-            if (!Objects.isNull(explain)) {
-                parseInfo.getSqlInfo().setQuerySql(explain.getSql());
+            String explainSql = semanticQuery.explain(user);
+            if (StringUtils.isNotBlank(explainSql)) {
+                parseInfo.getSqlInfo().setQuerySQL(explainSql);
             }
+        } else {
+            //init s2sql
+            semanticQuery.initS2Sql(user);
+            QueryReq queryReq = new QueryReq();
+            queryReq.setQueryFilters(new QueryFilters());
+            queryReq.setUser(user);
+            //correct s2sql
+            semanticCorrectors.stream().forEach(correction -> {
+                correction.correct(queryReq, semanticQuery.getParseInfo());
+            });
+            //update parserInfo
+            parseInfoService.updateParseInfo(semanticQuery.getParseInfo());
         }
-        semanticQuery.setParseInfo(parseInfo);
         QueryResult queryResult = semanticQuery.execute(user);
         queryResult.setChatContext(semanticQuery.getParseInfo());
         SemanticService semanticService = ContextUtils.getBean(SemanticService.class);
@@ -404,23 +363,26 @@ public class QueryServiceImpl implements QueryService {
             return;
         }
         Map<String, String> map = new HashMap<>();
-        String dateField = DateUtils.DATE_FIELD;
+        String dateField = TimeDimensionEnum.DAY.getChName();
         if (queryData.getDateInfo().getUnit() > 1) {
             queryData.getDateInfo().setStartDate(DateUtils.getBeforeDate(queryData.getDateInfo().getUnit() + 1));
             queryData.getDateInfo().setEndDate(DateUtils.getBeforeDate(1));
         }
+        // startDate equals to endDate
         if (queryData.getDateInfo().getStartDate().equals(queryData.getDateInfo().getEndDate())) {
             for (FilterExpression filterExpression : filterExpressionList) {
-                if (DateUtils.DATE_FIELD.equals(filterExpression.getFieldName())) {
+                if (TimeDimensionEnum.DAY.getChName().equals(filterExpression.getFieldName())) {
+                    //sql where condition exists 'equals' operator about date,just replace
                     if (filterExpression.getOperator().equals(FilterOperatorEnum.EQUALS)) {
                         dateField = filterExpression.getFieldName();
                         map.put(filterExpression.getFieldValue().toString(),
                                 queryData.getDateInfo().getStartDate());
                         filedNameToValueMap.put(dateField, map);
                     } else {
-                        removeFieldNames.add(DateUtils.DATE_FIELD);
+                        // first remove,then add
+                        removeFieldNames.add(TimeDimensionEnum.DAY.getChName());
                         EqualsTo equalsTo = new EqualsTo();
-                        Column column = new Column(DateUtils.DATE_FIELD);
+                        Column column = new Column(TimeDimensionEnum.DAY.getChName());
                         StringValue stringValue = new StringValue(queryData.getDateInfo().getStartDate());
                         equalsTo.setLeftExpression(column);
                         equalsTo.setRightExpression(stringValue);
@@ -431,8 +393,9 @@ public class QueryServiceImpl implements QueryService {
             }
         } else {
             for (FilterExpression filterExpression : filterExpressionList) {
-                if (DateUtils.DATE_FIELD.equals(filterExpression.getFieldName())) {
+                if (TimeDimensionEnum.DAY.getChName().equals(filterExpression.getFieldName())) {
                     dateField = filterExpression.getFieldName();
+                    //just replace
                     if (FilterOperatorEnum.GREATER_THAN_EQUALS.getValue().equals(filterExpression.getOperator())
                             || FilterOperatorEnum.GREATER_THAN.getValue().equals(filterExpression.getOperator())) {
                         map.put(filterExpression.getFieldValue().toString(),
@@ -444,12 +407,13 @@ public class QueryServiceImpl implements QueryService {
                                 queryData.getDateInfo().getEndDate());
                     }
                     filedNameToValueMap.put(dateField, map);
+                    // first remove,then add
                     if (FilterOperatorEnum.EQUALS.getValue().equals(filterExpression.getOperator())) {
-                        removeFieldNames.add(DateUtils.DATE_FIELD);
+                        removeFieldNames.add(TimeDimensionEnum.DAY.getChName());
                         GreaterThanEquals greaterThanEquals = new GreaterThanEquals();
-                        addTimeCondition(queryData.getDateInfo().getStartDate(), greaterThanEquals, addConditions);
+                        addTimeFilters(queryData.getDateInfo().getStartDate(), greaterThanEquals, addConditions);
                         MinorThanEquals minorThanEquals = new MinorThanEquals();
-                        addTimeCondition(queryData.getDateInfo().getEndDate(), minorThanEquals, addConditions);
+                        addTimeFilters(queryData.getDateInfo().getEndDate(), minorThanEquals, addConditions);
                     }
                 }
             }
@@ -457,18 +421,17 @@ public class QueryServiceImpl implements QueryService {
         parseInfo.setDateInfo(queryData.getDateInfo());
     }
 
-    public <T extends ComparisonOperator> void addTimeCondition(String date,
+    private <T extends ComparisonOperator> void addTimeFilters(String date,
             T comparisonExpression,
             List<Expression> addConditions) {
-        Column column = new Column(DateUtils.DATE_FIELD);
+        Column column = new Column(TimeDimensionEnum.DAY.getChName());
         StringValue stringValue = new StringValue(date);
         comparisonExpression.setLeftExpression(column);
         comparisonExpression.setRightExpression(stringValue);
         addConditions.add(comparisonExpression);
     }
 
-    private void updateFilters(Map<String, Map<String, String>> filedNameToValueMap,
-            List<FilterExpression> filterExpressionList,
+    private void updateFilters(List<FilterExpression> filterExpressionList,
             Set<QueryFilter> metricFilters,
             Set<QueryFilter> contextMetricFilters,
             List<Expression> addConditions,
@@ -477,40 +440,28 @@ public class QueryServiceImpl implements QueryService {
             return;
         }
         for (QueryFilter dslQueryFilter : metricFilters) {
-            Map<String, String> map = new HashMap<>();
             for (FilterExpression filterExpression : filterExpressionList) {
                 if (filterExpression.getFieldName() != null
                         && filterExpression.getFieldName().contains(dslQueryFilter.getName())) {
-                    if (dslQueryFilter.getOperator().getValue().equals(filterExpression.getOperator())
-                            && Objects.nonNull(dslQueryFilter.getValue())) {
-                        map.put(filterExpression.getFieldValue().toString(), dslQueryFilter.getValue().toString());
-                        filedNameToValueMap.put(dslQueryFilter.getName(), map);
-                        contextMetricFilters.stream().forEach(o -> {
-                            if (o.getName().equals(dslQueryFilter.getName())) {
-                                o.setValue(dslQueryFilter.getValue());
-                            }
-                        });
-                    } else {
-                        removeFieldNames.add(dslQueryFilter.getName());
-                        if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.EQUALS)) {
-                            EqualsTo equalsTo = new EqualsTo();
-                            addWhereCondition(dslQueryFilter, equalsTo, contextMetricFilters, addConditions);
-                        } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.GREATER_THAN_EQUALS)) {
-                            GreaterThanEquals greaterThanEquals = new GreaterThanEquals();
-                            addWhereCondition(dslQueryFilter, greaterThanEquals, contextMetricFilters, addConditions);
-                        } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.GREATER_THAN)) {
-                            GreaterThan greaterThan = new GreaterThan();
-                            addWhereCondition(dslQueryFilter, greaterThan, contextMetricFilters, addConditions);
-                        } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.MINOR_THAN_EQUALS)) {
-                            MinorThanEquals minorThanEquals = new MinorThanEquals();
-                            addWhereCondition(dslQueryFilter, minorThanEquals, contextMetricFilters, addConditions);
-                        } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.MINOR_THAN)) {
-                            MinorThan minorThan = new MinorThan();
-                            addWhereCondition(dslQueryFilter, minorThan, contextMetricFilters, addConditions);
-                        } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.IN)) {
-                            InExpression inExpression = new InExpression();
-                            addWhereInCondition(dslQueryFilter, inExpression, contextMetricFilters, addConditions);
-                        }
+                    removeFieldNames.add(dslQueryFilter.getName());
+                    if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.EQUALS)) {
+                        EqualsTo equalsTo = new EqualsTo();
+                        addWhereFilters(dslQueryFilter, equalsTo, contextMetricFilters, addConditions);
+                    } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.GREATER_THAN_EQUALS)) {
+                        GreaterThanEquals greaterThanEquals = new GreaterThanEquals();
+                        addWhereFilters(dslQueryFilter, greaterThanEquals, contextMetricFilters, addConditions);
+                    } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.GREATER_THAN)) {
+                        GreaterThan greaterThan = new GreaterThan();
+                        addWhereFilters(dslQueryFilter, greaterThan, contextMetricFilters, addConditions);
+                    } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.MINOR_THAN_EQUALS)) {
+                        MinorThanEquals minorThanEquals = new MinorThanEquals();
+                        addWhereFilters(dslQueryFilter, minorThanEquals, contextMetricFilters, addConditions);
+                    } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.MINOR_THAN)) {
+                        MinorThan minorThan = new MinorThan();
+                        addWhereFilters(dslQueryFilter, minorThan, contextMetricFilters, addConditions);
+                    } else if (dslQueryFilter.getOperator().equals(FilterOperatorEnum.IN)) {
+                        InExpression inExpression = new InExpression();
+                        addWhereInFilters(dslQueryFilter, inExpression, contextMetricFilters, addConditions);
                     }
                     break;
                 }
@@ -518,7 +469,8 @@ public class QueryServiceImpl implements QueryService {
         }
     }
 
-    public void addWhereInCondition(QueryFilter dslQueryFilter,
+    // add in condition to sql where  condition
+    private void addWhereInFilters(QueryFilter dslQueryFilter,
             InExpression inExpression,
             Set<QueryFilter> contextMetricFilters,
             List<Expression> addConditions) {
@@ -546,7 +498,8 @@ public class QueryServiceImpl implements QueryService {
         });
     }
 
-    public <T extends ComparisonOperator> void addWhereCondition(QueryFilter dslQueryFilter,
+    // add where filter
+    private <T extends ComparisonOperator> void addWhereFilters(QueryFilter dslQueryFilter,
             T comparisonExpression,
             Set<QueryFilter> contextMetricFilters,
             List<Expression> addConditions) {
@@ -558,9 +511,14 @@ public class QueryServiceImpl implements QueryService {
             return;
         }
         Column column = new Column(columnName);
-        LongValue longValue = new LongValue(Long.parseLong(dslQueryFilter.getValue().toString()));
         comparisonExpression.setLeftExpression(column);
-        comparisonExpression.setRightExpression(longValue);
+        if (StringUtils.isNumeric(dslQueryFilter.getValue().toString())) {
+            LongValue longValue = new LongValue(Long.parseLong(dslQueryFilter.getValue().toString()));
+            comparisonExpression.setRightExpression(longValue);
+        } else {
+            StringValue stringValue = new StringValue(dslQueryFilter.getValue().toString());
+            comparisonExpression.setRightExpression(stringValue);
+        }
         addConditions.add(comparisonExpression);
         contextMetricFilters.stream().forEach(o -> {
             if (o.getName().equals(dslQueryFilter.getName())) {
@@ -570,10 +528,9 @@ public class QueryServiceImpl implements QueryService {
         });
     }
 
-
     private SemanticParseInfo getSemanticParseInfo(QueryDataReq queryData, ChatParseDO chatParseDO) {
         SemanticParseInfo parseInfo = JsonUtil.toObject(chatParseDO.getParseInfo(), SemanticParseInfo.class);
-        if (S2QLQuery.QUERY_MODE.equals(parseInfo.getQueryMode())) {
+        if (S2SQLQuery.QUERY_MODE.equals(parseInfo.getQueryMode())) {
             return parseInfo;
         }
         if (CollectionUtils.isNotEmpty(queryData.getDimensions())) {
@@ -597,7 +554,11 @@ public class QueryServiceImpl implements QueryService {
         Set<Long> detectModelIds = new HashSet<>();
         detectModelIds.add(dimensionValueReq.getModelId());
         List<String> dimensionValues = getDimensionValues(dimensionValueReq, detectModelIds);
-
+        // if the search results is null,search dimensionValue from database
+        if (CollectionUtils.isEmpty(dimensionValues)) {
+            queryResultWithSchemaResp = queryDatabase(dimensionValueReq, user);
+            return queryResultWithSchemaResp;
+        }
         List<QueryColumn> columns = new ArrayList<>();
         QueryColumn queryColumn = new QueryColumn();
         queryColumn.setNameEn(dimensionValueReq.getBizName());
@@ -628,10 +589,10 @@ public class QueryServiceImpl implements QueryService {
             return terms.stream().map(term -> term.getWord()).collect(Collectors.toList());
         }
         //search from prefixSearch
-        List<MapResult> mapResultList = SearchService.prefixSearch(dimensionValueReq.getValue(),
+        List<HanlpMapResult> hanlpMapResultList = SearchService.prefixSearch(dimensionValueReq.getValue(),
                 2000, dimensionValueReq.getAgentId(), detectModelIds);
-        HanlpHelper.transLetterOriginal(mapResultList);
-        return mapResultList.stream()
+        HanlpHelper.transLetterOriginal(hanlpMapResultList);
+        return hanlpMapResultList.stream()
                 .filter(o -> {
                     for (String nature : o.getNatures()) {
                         Long elementID = NatureHelper.getElementID(nature);
@@ -643,6 +604,24 @@ public class QueryServiceImpl implements QueryService {
                 })
                 .map(mapResult -> mapResult.getName())
                 .collect(Collectors.toList());
+    }
+
+    private QueryResultWithSchemaResp queryDatabase(DimensionValueReq dimensionValueReq, User user) {
+        QueryStructReq queryStructReq = new QueryStructReq();
+
+        DateConf dateConf = new DateConf();
+        dateConf.setDateMode(DateConf.DateMode.RECENT);
+        dateConf.setUnit(1);
+        dateConf.setPeriod("DAY");
+        queryStructReq.setDateInfo(dateConf);
+        queryStructReq.setLimit(20L);
+        queryStructReq.setModelId(dimensionValueReq.getModelId());
+        queryStructReq.setNativeQuery(false);
+        List<String> groups = new ArrayList<>();
+        groups.add(dimensionValueReq.getBizName());
+        queryStructReq.setGroups(groups);
+        SemanticInterpreter semanticInterpreter = ComponentFactory.getSemanticLayer();
+        return semanticInterpreter.queryByStruct(queryStructReq, user);
     }
 
 }
