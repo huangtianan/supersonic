@@ -5,9 +5,10 @@ import { Button, DatePicker } from 'antd';
 import { CheckCircleFilled, ReloadOutlined } from '@ant-design/icons';
 import Loading from './Loading';
 import FilterItem from './FilterItem';
-import moment from 'moment';
+import MarkDown from '../ChatMsg/MarkDown';
 import classNames from 'classnames';
 import { isMobile } from '../../utils/utils';
+import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 
@@ -23,6 +24,7 @@ type Props = {
   integrateSystem?: string;
   parseTimeCost?: number;
   isDeveloper?: boolean;
+  isSimpleMode?: boolean;
   onSelectParseInfo: (parseInfo: ChatContextType) => void;
   onSwitchEntity: (entityId: string) => void;
   onFiltersChange: (filters: FilterItemType[]) => void;
@@ -44,6 +46,7 @@ const ParseTip: React.FC<Props> = ({
   integrateSystem,
   parseTimeCost,
   isDeveloper,
+  isSimpleMode,
   onSelectParseInfo,
   onSwitchEntity,
   onFiltersChange,
@@ -51,8 +54,7 @@ const ParseTip: React.FC<Props> = ({
   onRefresh,
 }) => {
   const prefixCls = `${PREFIX_CLS}-item`;
-
-  const getNode = (tipTitle: ReactNode, tipNode?: ReactNode, parseSucceed?: boolean) => {
+  const getNode = (tipTitle: ReactNode, tipNode?: ReactNode) => {
     return (
       <div className={`${prefixCls}-parse-tip`}>
         <div className={`${prefixCls}-title-bar`}>
@@ -89,15 +91,17 @@ const ParseTip: React.FC<Props> = ({
 
   const {
     modelId,
-    modelName,
+    dataSet,
     dimensions,
     metrics,
     aggType,
     queryMode,
+    queryType,
     properties,
     entity,
     elementMatches,
     nativeQuery,
+    textInfo = '',
   } = currentParseInfo || {};
 
   const entityAlias = entity?.alias?.[0]?.split('.')?.[0];
@@ -126,7 +130,7 @@ const ParseTip: React.FC<Props> = ({
     const { type: agentType, name: agentName } = properties || {};
 
     const fields =
-      queryMode === 'ENTITY_DETAIL' ? dimensionItems?.concat(metrics || []) : dimensionItems;
+      queryMode === 'TAG_DETAIL' ? dimensionItems?.concat(metrics || []) : dimensionItems;
 
     return (
       <div className={`${prefixCls}-tip-content`}>
@@ -147,24 +151,32 @@ const ParseTip: React.FC<Props> = ({
               </div>
             ) : (
               <div className={`${prefixCls}-tip-item`}>
-                <div className={`${prefixCls}-tip-item-name`}>数据模型：</div>
-                <div className={itemValueClass}>{modelName}</div>
+                <div className={`${prefixCls}-tip-item-name`}>数据集：</div>
+                <div className={itemValueClass}>{dataSet?.name}</div>
               </div>
             )}
-            {!queryMode?.includes('ENTITY') &&
+            {(queryType === 'METRIC' || queryType === 'METRIC_TAG' || queryType === 'DETAIL') && (
+              <div className={`${prefixCls}-tip-item`}>
+                <div className={`${prefixCls}-tip-item-name`}>查询模式：</div>
+                <div className={itemValueClass}>
+                  {queryType === 'METRIC' || queryType === 'METRIC_TAG' ? '指标模式' : '明细模式'}
+                </div>
+              </div>
+            )}
+            {queryType !== 'DETAIL' &&
               metrics &&
               metrics.length > 0 &&
               !dimensions?.some(item => item.bizName?.includes('_id')) && (
                 <div className={`${prefixCls}-tip-item`}>
                   <div className={`${prefixCls}-tip-item-name`}>指标：</div>
                   <div className={itemValueClass}>
-                    {metrics.map(metric => metric.name).join('、')}
+                    {queryType === 'METRIC' || queryType === 'ID'
+                      ? metrics[0].name
+                      : metrics.map(metric => metric.name).join('、')}
                   </div>
                 </div>
               )}
-            {['METRIC_GROUPBY', 'METRIC_ORDERBY', 'ENTITY_DETAIL', 'LLM_S2SQL'].includes(
-              queryMode!
-            ) &&
+            {['METRIC_GROUPBY', 'METRIC_ORDERBY', 'TAG_DETAIL', 'LLM_S2SQL'].includes(queryMode!) &&
               fields &&
               fields.length > 0 && (
                 <div className={`${prefixCls}-tip-item`}>
@@ -173,7 +185,7 @@ const ParseTip: React.FC<Props> = ({
                       ? nativeQuery
                         ? '查询字段'
                         : '下钻维度'
-                      : queryMode === 'ENTITY_DETAIL'
+                      : queryMode === 'TAG_DETAIL'
                       ? '查询字段'
                       : '下钻维度'}
                     ：
@@ -187,7 +199,7 @@ const ParseTip: React.FC<Props> = ({
                   </div>
                 </div>
               )}
-            {queryMode !== 'ENTITY_ID' &&
+            {queryMode !== 'TAG_ID' &&
               !dimensions?.some(item => item.bizName?.includes('_id')) &&
               entityDimensions
                 ?.filter(dimension => dimension.value != null)
@@ -227,7 +239,7 @@ const ParseTip: React.FC<Props> = ({
             </span>
           ) : (
             <RangePicker
-              value={[moment(startDate), moment(endDate)]}
+              value={[dayjs(startDate), dayjs(endDate)]}
               onChange={onDateInfoChange}
               getPopupContainer={trigger => trigger.parentNode as HTMLElement}
               allowClear={false}
@@ -288,7 +300,7 @@ const ParseTip: React.FC<Props> = ({
         )}
         {parseInfoOptions?.length > 1 ? '：' : ''}
       </div>
-      {parseInfoOptions?.length > 1 && (
+      {!isSimpleMode && parseInfoOptions?.length > 1 && (
         <div className={`${prefixCls}-content-options`}>
           {parseInfoOptions.map((parseInfo, index) => (
             <div
@@ -306,8 +318,7 @@ const ParseTip: React.FC<Props> = ({
         </div>
       )}
     </div>,
-    tipNode,
-    true
+    isSimpleMode ? <MarkDown markdown={textInfo} /> : tipNode
   );
 };
 

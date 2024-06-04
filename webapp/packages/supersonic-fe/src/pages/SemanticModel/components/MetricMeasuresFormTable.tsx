@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Input, Space } from 'antd';
-import ProTable from '@ant-design/pro-table';
-import ProCard from '@ant-design/pro-card';
+import { Input, Space, Tag, Divider } from 'antd';
+import { ProTable } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
 import SqlEditor from '@/components/SqlEditor';
-import BindMeasuresTable from './BindMeasuresTable';
+
 import FormLabelRequire from './FormLabelRequire';
+import styles from './style.less';
 import { ISemantic } from '../data';
 
 type Props = {
   datasourceId?: number;
-  typeParams: ISemantic.ITypeParams;
+  typeParams: ISemantic.IMeasureTypeParams;
   measuresList: ISemantic.IMeasure[];
   onFieldChange: (measures: ISemantic.IMeasure[]) => void;
   onSqlChange: (sql: string) => void;
@@ -26,13 +27,57 @@ const MetricMeasuresFormTable: React.FC<Props> = ({
 }) => {
   const actionRef = useRef<ActionType>();
 
-  const [measuresModalVisible, setMeasuresModalVisible] = useState<boolean>(false);
+  const [tableData, setTableData] = useState<any[]>([]);
+
   const [measuresParams, setMeasuresParams] = useState(
     typeParams || {
       expr: '',
       measures: [],
     },
   );
+
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(() => {
+    return measuresParams?.measures.map((item: ISemantic.IMeasure) => {
+      return item.bizName;
+    });
+  });
+
+  const [selectedKeysMap, setSelectedKeysMap] = useState<Record<string, boolean>>(() => {
+    if (!Array.isArray(measuresParams?.measures)) {
+      return {};
+    }
+    return measuresParams.measures.reduce((keyMap: any, item: ISemantic.IMeasure) => {
+      keyMap[item.bizName] = true;
+      return keyMap;
+    }, {});
+  });
+
+  const getTableData = () => {
+    const datasource =
+      datasourceId && Array.isArray(measuresList)
+        ? measuresList.filter((item) => item.datasourceId === datasourceId)
+        : measuresList;
+    const { measures } = measuresParams;
+    if (!Array.isArray(measures)) {
+      return datasource;
+    }
+    const tableData = datasource.map((item) => {
+      const { bizName } = item;
+      const target = measures.find((measureItem) => measureItem.bizName === bizName);
+      if (target) {
+        return {
+          ...item,
+          constraint: target.constraint,
+        };
+      }
+      return item;
+    });
+    return tableData;
+  };
+
+  useEffect(() => {
+    setTableData(getTableData());
+  }, [measuresList, measuresParams]);
 
   useEffect(() => {
     setMeasuresParams({ ...typeParams });
@@ -44,91 +89,146 @@ const MetricMeasuresFormTable: React.FC<Props> = ({
     {
       dataIndex: 'bizName',
       title: '度量名称',
+      tooltip: '由模型名称_字段名称拼接而来',
     },
     {
       dataIndex: 'constraint',
       title: '限定条件',
+      width: 350,
       tooltip:
-        '该限定条件用于在计算指标时限定口径，作用于度量，所用于过滤的维度必须在创建数据源的时候被标记为日期或者维度，不需要加where关键字。比如：维度A="值1" and 维度B="值2"',
+        '该限定条件用于在计算指标时限定口径，作用于度量，所用于过滤的维度必须在创建模型的时候被标记为日期或者维度，不需要加where关键字。比如：维度A="值1" and 维度B="值2"',
       render: (_: any, record: any) => {
-        const { constraint, name } = record;
-        const { measures } = measuresParams;
+        const { constraint, bizName } = record;
         return (
           <TextArea
             placeholder="请输入限定条件"
             value={constraint}
+            style={{ height: 42 }}
+            disabled={!selectedKeysMap[bizName]}
             onChange={(event) => {
               const { value } = event.target;
-              const list = measures.map((item: any) => {
-                if (item.name === name) {
-                  return {
-                    ...item,
-                    constraint: value,
-                  };
+
+              const measures = tableData.reduce((list: any[], item) => {
+                if (selectedKeysMap[item.bizName] === true) {
+                  if (item.bizName === bizName) {
+                    list.push({
+                      ...item,
+                      constraint: value,
+                    });
+                  } else {
+                    list.push(item);
+                  }
                 }
-                return item;
-              });
-              onFieldChange?.(list);
+                return list;
+              }, []);
+              onFieldChange?.(measures);
             }}
           />
         );
       },
     },
     {
-      title: '操作',
-      dataIndex: 'x',
-      valueType: 'option',
-      render: (_: any, record: any) => {
-        const { name } = record;
-        return (
-          <Space>
-            <a
-              key="deleteBtn"
-              onClick={() => {
-                const { measures } = measuresParams;
-                const list = measures.filter((item: any) => {
-                  return item.name !== name;
-                });
-                onFieldChange?.(list);
-              }}
-            >
-              删除
-            </a>
-          </Space>
-        );
-      },
+      dataIndex: 'agg',
+      title: '聚合函数',
+      width: 150,
     },
   ];
+
+  const handleUpdateKeys = (updateKeys: Record<string, boolean>) => {
+    const datasource = getTableData();
+    setSelectedKeysMap(updateKeys);
+    const selectedKeys: string[] = [];
+    const measures = datasource.reduce((list: any[], item) => {
+      if (updateKeys[item.bizName] === true) {
+        selectedKeys.push(item.bizName);
+        list.push(item);
+      }
+      return list;
+    }, []);
+    setSelectedKeys(selectedKeys);
+    onFieldChange(measures);
+  };
+
+  const rowSelection = {
+    selectedRowKeys: selectedKeys,
+    onSelect: (record: ISemantic.IMeasure, selected: boolean) => {
+      const updateKeys = { ...selectedKeysMap, [record.bizName]: selected };
+      handleUpdateKeys(updateKeys);
+    },
+    onSelectAll: (
+      selected: boolean,
+      selectedRows: ISemantic.IMeasure[],
+      changeRows: ISemantic.IMeasure[],
+    ) => {
+      const updateKeys = changeRows.reduce(
+        (keyMap: Record<string, boolean>, item: ISemantic.IMeasure) => {
+          keyMap[item.bizName] = selected;
+          return keyMap;
+        },
+        {},
+      );
+      handleUpdateKeys({ ...selectedKeysMap, ...updateKeys });
+    },
+  };
+
   return (
     <>
       <Space direction="vertical" style={{ width: '100%' }}>
         <ProTable
           actionRef={actionRef}
           headerTitle={<FormLabelRequire title="度量列表" />}
-          tooltip="基于本主题域下所有数据源的度量来创建指标，且该列表的度量为了加以区分，均已加上数据源名称作为前缀，选中度量后，可基于这几个度量来写表达式，若是选中的度量来自不同的数据源，系统将会自动join来计算该指标"
-          rowKey="name"
+          rowKey="bizName"
           columns={columns}
-          dataSource={measuresParams?.measures || []}
-          pagination={false}
+          dataSource={tableData}
           search={false}
-          size="small"
+          toolbar={{
+            search: {
+              placeholder: '请输入度量名称',
+              onSearch: (value: string) => {
+                const tableData = getTableData();
+                if (!value) {
+                  setTableData(tableData);
+                  return;
+                }
+                setTableData(
+                  [...tableData].reduce((data: ISemantic.IMeasure[], item: ISemantic.IMeasure) => {
+                    if (item.bizName.includes(value)) {
+                      data.push(item);
+                    }
+                    return data;
+                  }, []),
+                );
+              },
+            },
+          }}
+          pagination={{ defaultPageSize: 10 }}
+          // size="small"
           options={false}
-          toolBarRender={() => [
-            <Button
-              key="create"
-              type="primary"
-              onClick={() => {
-                setMeasuresModalVisible(true);
-              }}
-            >
-              增加度量
-            </Button>,
-          ]}
+          tableAlertRender={false}
+          scroll={{ y: 700 }}
+          rowSelection={rowSelection}
         />
+        <Divider style={{ marginBottom: 0 }} />
         <ProCard
-          title={<FormLabelRequire title="度量表达式" />}
-          tooltip="度量表达式由上面选择的度量组成，如选择了度量A和B，则可将表达式写成A+B"
+          title={<FormLabelRequire title="表达式" />}
+          // tooltip="由于度量已自带聚合函数，因此通过度量创建指标时，表达式中无需再写聚合函数，如
+          // 通过度量a和度量b来创建指标，由于建模的时候度量a和度量b被指定了聚合函数SUM，因此创建指标时表达式只需要写成 a+b, 而不需要带聚合函数"
         >
+          <p
+            className={styles.desc}
+            style={{ border: 'unset', padding: 0, marginBottom: 20, marginLeft: 2 }}
+          >
+            在
+            <Tag color="#2499ef14" className={styles.markerTag}>
+              建模时
+            </Tag>
+            度量已指定了
+            <Tag color="#2499ef14" className={styles.markerTag}>
+              聚合函数
+            </Tag>
+            ，在度量模式下，表达式无需再写聚合函数，如:
+            通过指定了聚合函数SUM的度量a和度量b来创建指标，表达式只需要写成 a+b
+          </p>
           <SqlEditor
             value={exprString}
             onChange={(sql: string) => {
@@ -140,32 +240,6 @@ const MetricMeasuresFormTable: React.FC<Props> = ({
           />
         </ProCard>
       </Space>
-      {measuresModalVisible && (
-        <BindMeasuresTable
-          measuresList={
-            datasourceId && Array.isArray(measuresList)
-              ? measuresList.filter((item) => item.datasourceId === datasourceId)
-              : measuresList
-          }
-          selectedMeasuresList={measuresParams?.measures || []}
-          onSubmit={async (values: any[]) => {
-            const measures = values.map(({ bizName, name, expr, datasourceId }) => {
-              return {
-                bizName,
-                name,
-                expr,
-                datasourceId,
-              };
-            });
-            onFieldChange?.(measures);
-            setMeasuresModalVisible(false);
-          }}
-          onCancel={() => {
-            setMeasuresModalVisible(false);
-          }}
-          createModalVisible={measuresModalVisible}
-        />
-      )}
     </>
   );
 };

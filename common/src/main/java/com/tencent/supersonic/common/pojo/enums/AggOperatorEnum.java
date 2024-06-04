@@ -10,6 +10,7 @@ public enum AggOperatorEnum {
 
     SUM("SUM"),
 
+    COUNT("COUNT"),
     COUNT_DISTINCT("COUNT_DISTINCT"),
     DISTINCT("DISTINCT"),
 
@@ -51,6 +52,5 @@ public enum AggOperatorEnum {
     public static boolean isCountDistinct(String aggType) {
         return null != aggType && aggType.toUpperCase().equals(COUNT_DISTINCT.getOperator());
     }
-
 
 }

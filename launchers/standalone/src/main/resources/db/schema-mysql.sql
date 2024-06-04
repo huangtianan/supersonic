@@ -1,3 +1,69 @@
+CREATE TABLE `s2_user_department` (
+      `user_name` varchar(200) NOT NULL,
+       `department` varchar(200) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `s2_pv_uv_statis` (
+      `imp_date` varchar(200) NOT NULL,
+      `user_name` varchar(200) NOT NULL,
+      `page` varchar(200) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `s2_stay_time_statis` (
+       `imp_date` varchar(200) NOT NULL,
+       `user_name` varchar(200) NOT NULL,
+       `stay_hours` DOUBLE NOT NULL,
+       `page` varchar(200) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `singer` (
+    `imp_date` varchar(200) NOT NULL,
+    `singer_name` varchar(200) NOT NULL,
+    `act_area` varchar(200) NOT NULL,
+    `song_name` varchar(200) NOT NULL,
+    `genre` varchar(200) NOT NULL,
+    `js_play_cnt` bigint DEFAULT NULL,
+    `down_cnt` bigint DEFAULT NULL,
+    `favor_cnt` bigint DEFAULT NULL
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- benchmark
+CREATE TABLE IF NOT EXISTS `genre` (
+    `g_name` varchar(20) NOT NULL , -- genre name
+    `rating` INT ,
+    `most_popular_in` varchar(50) ,
+    PRIMARY KEY (`g_name`)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `artist` (
+    `artist_name` varchar(50) NOT NULL , -- genre name
+    `citizenship` varchar(20) ,
+    `gender` varchar(20) ,
+    `g_name` varchar(50)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `files` (
+     `f_id` bigINT NOT NULL,
+     `artist_name` varchar(50) ,
+    `file_size` varchar(20) ,
+    `duration` varchar(20) ,
+    `formats` varchar(20) ,
+    PRIMARY KEY (`f_id`)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `song` (
+    `imp_date` varchar(50) ,
+    `song_name` varchar(50) ,
+    `artist_name` varchar(50) ,
+    `country` varchar(20) ,
+    `f_id` bigINT ,
+    `g_name` varchar(20) ,
+    `rating` int ,
+    `languages` varchar(20) ,
+    `releasedate` varchar(50) ,
+    `resolution` bigINT NOT NULL
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `s2_agent` (
                             `id` int(11) NOT NULL AUTO_INCREMENT,
                             `name` varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL,
@@ -6,6 +72,8 @@ CREATE TABLE `s2_agent` (
                             `status` int(11) DEFAULT NULL,
                             `model` varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL,
                             `config` varchar(6000) COLLATE utf8_unicode_ci DEFAULT NULL,
+                            `llm_config` varchar(2000) COLLATE utf8_unicode_ci DEFAULT NULL,
+                            `multi_turn_config` varchar(2000) COLLATE utf8_unicode_ci DEFAULT NULL,
                             `created_by` varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL,
                             `created_at` datetime DEFAULT NULL,
                             `updated_by` varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL,
@@ -15,9 +83,9 @@ CREATE TABLE `s2_agent` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE `s2_auth_groups` (
-                                  `group_id` int(11) NOT NULL,
-                                  `config` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-                                  PRIMARY KEY (`group_id`)
+      `group_id` int(11) NOT NULL,
+      `config` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+      PRIMARY KEY (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -63,6 +131,7 @@ CREATE TABLE `s2_chat_config` (
                                   `created_by` varchar(100) NOT NULL COMMENT '创建人',
                                   `updated_by` varchar(100) NOT NULL COMMENT '更新人',
                                   `status` int(10) NOT NULL COMMENT '主题域扩展信息状态, 0-删除，1-生效',
+                                  `llm_examples` text COMMENT 'llm examples',
                                   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='主题域扩展信息表';
 
@@ -89,19 +158,22 @@ CREATE TABLE `s2_chat_parse` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
-CREATE TABLE `s2_chat_query` (
-                                 `question_id` bigint(20) NOT NULL AUTO_INCREMENT,
-                                 `agent_id` int(11) DEFAULT NULL,
-                                 `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                                 `query_text` mediumtext,
-                                 `user_name` varchar(150) DEFAULT NULL,
-                                 `query_state` int(1) DEFAULT NULL,
-                                 `chat_id` bigint(20) NOT NULL,
-                                 `query_result` mediumtext,
-                                 `score` int(11) DEFAULT '0',
-                                 `feedback` varchar(1024) DEFAULT '',
-                                 PRIMARY KEY (`question_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE `s2_chat_query`
+(
+    `question_id`     bigint(20) NOT NULL AUTO_INCREMENT,
+    `agent_id`        int(11)             DEFAULT NULL,
+    `create_time`     timestamp  NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `query_text`      mediumtext,
+    `user_name`       varchar(150)        DEFAULT NULL,
+    `query_state`     int(1)              DEFAULT NULL,
+    `chat_id`         bigint(20) NOT NULL,
+    `query_result`    mediumtext,
+    `score`           int(11)             DEFAULT '0',
+    `feedback`        varchar(1024)       DEFAULT '',
+    `similar_queries` varchar(1024)       DEFAULT '',
+    `parse_time_cost` varchar(1024)       DEFAULT '',
+    PRIMARY KEY (`question_id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8;
 
 
 CREATE TABLE `s2_chat_statistics` (
@@ -132,74 +204,37 @@ CREATE TABLE `s2_database` (
                                PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='数据库实例表';
 
-CREATE TABLE `s2_datasource` (
-                                 `id` bigint(20) NOT NULL AUTO_INCREMENT,
-                                 `model_id` bigint(20) DEFAULT NULL,
-                                 `name` varchar(255) NOT NULL COMMENT '数据源名称',
-                                 `biz_name` varchar(255) NOT NULL COMMENT '内部名称',
-                                 `agg_time` varchar(32) DEFAULT 'day',
-                                 `description` varchar(500) DEFAULT NULL COMMENT '数据源描述',
-                                 `database_id` bigint(20) NOT NULL COMMENT '数据库实例ID',
-                                 `datasource_detail` mediumtext NOT NULL COMMENT '数据源配置',
-                                 `status` int(11) DEFAULT NULL ,
-                                 `depends` text DEFAULT NULL COMMENT '上游依赖标识',
-                                 `created_at` datetime NOT NULL COMMENT '创建时间',
-                                 `created_by` varchar(100) NOT NULL COMMENT '创建人',
-                                 `updated_at` datetime NOT NULL COMMENT '更新时间',
-                                 `updated_by` varchar(100) NOT NULL COMMENT '更新人',
-                                 PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
-CREATE TABLE `s2_datasource_rela` (
-                                      `id` bigint(20) NOT NULL AUTO_INCREMENT,
-                                      `model_id` bigint(20) DEFAULT NULL,
-                                      `datasource_from` bigint(20) DEFAULT NULL,
-                                      `datasource_to` bigint(20) DEFAULT NULL,
-                                      `join_key` varchar(100) DEFAULT NULL,
-                                      `created_at` datetime DEFAULT NULL,
-                                      `created_by` varchar(100) DEFAULT NULL,
-                                      `updated_at` datetime DEFAULT NULL,
-                                      `updated_by` varchar(100) DEFAULT NULL,
-                                      PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
-CREATE TABLE `s2_dictionary` (
-                                 `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-                                 `item_id` bigint(20) DEFAULT NULL COMMENT '对应维度id、指标id等',
-                                 `type` varchar(50) DEFAULT NULL COMMENT '对应维度、指标等',
-                                 `black_list` mediumtext COMMENT '字典黑名单',
-                                 `white_list` mediumtext COMMENT '字典白名单',
-                                 `rule_list` mediumtext COMMENT '字典规则',
-                                 `is_dict_Info` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1-开启写入字典，0-不开启',
-                                 `created_at` datetime NOT NULL COMMENT '创建时间',
-                                 `updated_at` datetime NOT NULL COMMENT '更新时间',
-                                 `created_by` varchar(100) NOT NULL COMMENT '创建人',
-                                 `updated_by` varchar(100) DEFAULT NULL COMMENT '更新人',
-                                 `is_deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1-删除,0-可用',
-                                 PRIMARY KEY (`id`)
+CREATE TABLE IF NOT EXISTS `s2_dictionary_conf` (
+   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+   `description` varchar(255) ,
+   `type` varchar(255)  NOT NULL ,
+   `item_id` INT  NOT NULL ,
+   `config` mediumtext  ,
+   `status` varchar(255) NOT NULL ,
+   `created_at` datetime NOT NULL COMMENT '创建时间' ,
+   `created_by` varchar(100) NOT NULL ,
+   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='字典配置信息表';
 
-CREATE TABLE `s2_dictionary_task` (
-                                      `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-                                      `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务名称',
-                                      `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '任务描述',
-                                      `command` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务请求参数',
-                                      `command_md5` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务请求参数',
-                                      `dimension_ids` mediumtext  NULL COMMENT '本次执行维度列表',
-                                      `status` int(10) NOT NULL COMMENT '任务最终运行状态',
-                                      `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-                                      `created_by` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '创建人',
-                                      `progress` double(3,2) DEFAULT '0.00' COMMENT '任务进度',
-  `elapsed_ms` bigint(10) DEFAULT NULL COMMENT '任务耗时',
-  `message` mediumtext COLLATE utf8mb4_unicode_ci COMMENT '备注相关信息',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='字典任务信息表';
+
+CREATE TABLE IF NOT EXISTS `s2_dictionary_task` (
+   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+   `name` varchar(255) NOT NULL ,
+   `description` varchar(255) ,
+   `type` varchar(255)  NOT NULL ,
+   `item_id` INT  NOT NULL ,
+   `config` mediumtext  ,
+   `status` varchar(255) NOT NULL ,
+   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+   `created_by` varchar(100) NOT NULL ,
+   `elapsed_ms` int(10) DEFAULT NULL ,
+   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='字典运行任务表';
 
 
 CREATE TABLE `s2_dimension` (
                                 `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '维度ID',
                                 `model_id` bigint(20) DEFAULT NULL,
-                                `datasource_id` bigint(20) NOT NULL COMMENT '所属数据源id',
                                 `name` varchar(255) NOT NULL COMMENT '维度名称',
                                 `biz_name` varchar(255) NOT NULL COMMENT '字段名称',
                                 `description` varchar(500) NOT NULL COMMENT '描述',
@@ -217,6 +252,8 @@ CREATE TABLE `s2_dimension` (
                                 `alias` varchar(500) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
                                 `default_values` varchar(500) DEFAULT NULL,
                                 `dim_value_maps` varchar(5000) DEFAULT NULL,
+                                `is_tag` int(10) DEFAULT NULL,
+                                `ext` varchar(1000) DEFAULT NULL,
                                 PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='维度表';
 
@@ -240,27 +277,32 @@ CREATE TABLE `s2_domain` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='主题域基础信息表';
 
 
-CREATE TABLE `s2_metric` (
-                             `id` bigint(20) NOT NULL AUTO_INCREMENT,
-                             `model_id` bigint(20) DEFAULT NULL,
-                             `name` varchar(255) NOT NULL COMMENT '指标名称',
-                             `biz_name` varchar(255) NOT NULL COMMENT '字段名称',
-                             `description` varchar(500) DEFAULT NULL COMMENT '描述',
-                             `status` int(10) NOT NULL COMMENT '指标状态,0未启用,1启用',
-                             `sensitive_level` int(10) NOT NULL COMMENT '敏感级别',
-                             `type` varchar(50) NOT NULL COMMENT '指标类型',
-                             `type_params` text NOT NULL COMMENT '类型参数',
-                             `created_at` datetime NOT NULL COMMENT '创建时间',
-                             `created_by` varchar(100) NOT NULL COMMENT '创建人',
-                             `updated_at` datetime NOT NULL COMMENT '更新时间',
-                             `updated_by` varchar(100) NOT NULL COMMENT '更新人',
-                             `data_format_type` varchar(50) DEFAULT NULL COMMENT '数值类型',
-                             `data_format` varchar(500) DEFAULT NULL COMMENT '数值类型参数',
-                             `alias` varchar(500) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
-                             `tags` varchar(500) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
-                             `relate_dimensions` varchar(500) DEFAULT NULL COMMENT '指标相关维度',
-                             PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='指标表';
+CREATE TABLE `s2_metric`
+(
+    `id`                bigint(20)   NOT NULL AUTO_INCREMENT,
+    `model_id`          bigint(20)   DEFAULT NULL,
+    `name`              varchar(255) NOT NULL COMMENT '指标名称',
+    `biz_name`          varchar(255) NOT NULL COMMENT '字段名称',
+    `description`       varchar(500) DEFAULT NULL COMMENT '描述',
+    `status`            int(10)      NOT NULL COMMENT '指标状态',
+    `sensitive_level`   int(10)      NOT NULL COMMENT '敏感级别',
+    `type`              varchar(50)  NOT NULL COMMENT '指标类型',
+    `type_params`       text         NOT NULL COMMENT '类型参数',
+    `created_at`        datetime     NOT NULL COMMENT '创建时间',
+    `created_by`        varchar(100) NOT NULL COMMENT '创建人',
+    `updated_at`        datetime     NOT NULL COMMENT '更新时间',
+    `updated_by`        varchar(100) NOT NULL COMMENT '更新人',
+    `data_format_type`  varchar(50)  DEFAULT NULL COMMENT '数值类型',
+    `data_format`       varchar(500) DEFAULT NULL COMMENT '数值类型参数',
+    `alias`             varchar(500) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
+    `classifications`   varchar(500) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
+    `relate_dimensions` varchar(500) DEFAULT NULL COMMENT '指标相关维度',
+    `ext`               text DEFAULT NULL,
+    `define_type` varchar(50)  DEFAULT NULL, -- MEASURE, FIELD, METRIC
+    `is_publish` int(10) DEFAULT NULL COMMENT '是否发布',
+    PRIMARY KEY (`id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8 COMMENT ='指标表';
 
 
 CREATE TABLE `s2_model` (
@@ -282,13 +324,20 @@ CREATE TABLE `s2_model` (
                             `updated_at` datetime DEFAULT NULL,
                             `entity` text COLLATE utf8_unicode_ci,
                             `drill_down_dimensions` varchar(500) DEFAULT NULL,
+                            `database_id` INT NOT  NULL ,
+                            `model_detail` text NOT  NULL ,
+                            `source_type` varchar(128) DEFAULT NULL ,
+                            `depends` varchar(500) DEFAULT NULL ,
+                            `filter_sql` varchar(1000) DEFAULT NULL ,
+                            `tag_object_id` int(11) DEFAULT '0',
+                            `ext` varchar(1000) DEFAULT NULL,
                             PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE `s2_plugin` (
                              `id` bigint(20) NOT NULL AUTO_INCREMENT,
                              `type` varchar(50) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL COMMENT 'DASHBOARD,WIDGET,URL',
-                             `model` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+                             `data_set` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
                              `pattern` varchar(500) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
                              `parse_mode` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
                              `parse_mode_config` text COLLATE utf8mb4_unicode_ci,
@@ -306,6 +355,7 @@ CREATE TABLE `s2_query_stat_info` (
                                       `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                                       `trace_id` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '查询标识',
                                       `model_id` bigint(20) DEFAULT NULL,
+                                      `data_set_id` bigint(20) DEFAULT NULL,
                                       `user` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '执行sql的用户',
                                       `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                                       `query_type` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '查询对应的场景',
@@ -358,17 +408,18 @@ CREATE TABLE `s2_semantic_pasre_info` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='语义层sql解析信息表';
 
 
-CREATE TABLE `s2_view_info` (
-                                `id` bigint(20) NOT NULL AUTO_INCREMENT,
-                                `model_id` bigint(20) DEFAULT NULL,
-                                `type` varchar(20) DEFAULT NULL COMMENT 'datasource、dimension、metric',
-                                `config` text COMMENT 'config detail',
-                                `created_at` datetime DEFAULT NULL,
-                                `created_by` varchar(100) DEFAULT NULL,
-                                `updated_at` datetime DEFAULT NULL,
-                                `updated_by` varchar(100) NOT NULL,
-                                PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE `s2_canvas`
+(
+    `id`         bigint(20)   NOT NULL AUTO_INCREMENT,
+    `domain_id`  bigint(20)   DEFAULT NULL,
+    `type`       varchar(20)  DEFAULT NULL COMMENT 'datasource、dimension、metric',
+    `config`     text COMMENT 'config detail',
+    `created_at` datetime     DEFAULT NULL,
+    `created_by` varchar(100) DEFAULT NULL,
+    `updated_at` datetime     DEFAULT NULL,
+    `updated_by` varchar(100) NOT NULL,
+    PRIMARY KEY (`id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8;
 
 create table s2_user
 (
@@ -381,67 +432,137 @@ create table s2_user
     PRIMARY KEY (`id`)
 );
 
-insert into s2_user (id, `name`, password, display_name, email, is_admin) values (1, 'admin','admin','admin','admin@xx.com', 1);
-
-
-CREATE TABLE `s2_materialization`
+CREATE TABLE s2_system_config
 (
-    `id`                bigint(20) NOT NULL AUTO_INCREMENT,
-    `name`              varchar(255) NOT NULL COMMENT '物化名称',
-    `materialized_type` varchar(255) NOT NULL COMMENT '物化类型 partition 分区 zipper 拉链 ',
-    `update_cycle`      varchar(255) DEFAULT NULL COMMENT '更新周期，天更新、周更新、月更新',
-    `model_id`          bigint(20) DEFAULT NULL,
-    `database_id`       bigint(20) NOT NULL COMMENT '数据库实例ID',
-    `level`             int(11) NOT NULL DEFAULT '0' COMMENT '优先级，数值越大优先级越高',
-    `status`            int(11) NOT NULL DEFAULT '1' COMMENT '0-废弃，1-使用中',
-    `destination_table` varchar(255) NOT NULL COMMENT '物化表名称',
-    `date_info`         mediumtext COMMENT '时间字段',
-    `entities`          mediumtext COMMENT 'primary字段',
-    `principals`        varchar(255) DEFAULT NULL COMMENT '责任人',
-    `created_at`        datetime     DEFAULT NULL,
-    `created_by`        varchar(100) DEFAULT NULL,
-    `updated_at`        datetime     DEFAULT NULL,
-    `updated_by`        varchar(100) NOT NULL,
-    `description`       mediumtext COMMENT '备注说明',
+    id  int primary key AUTO_INCREMENT COMMENT '主键id',
+    admin varchar(500) COMMENT '系统管理员',
+    parameters text null COMMENT '配置项'
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE s2_model_rela
+(
+    id             bigint primary key AUTO_INCREMENT,
+    domain_id       bigint,
+    from_model_id    bigint,
+    to_model_id      bigint,
+    join_type       VARCHAR(255),
+    join_condition  VARCHAR(255)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `s2_collect` (
+    `id` bigint NOT NULL primary key AUTO_INCREMENT,
+    `type` varchar(20) NOT NULL,
+    `username` varchar(20) NOT NULL,
+    `collect_id` bigint NOT NULL,
+    `create_time` datetime,
+    `update_time` datetime
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `s2_metric_query_default_config` (
+    `id` bigint NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    `metric_id` bigint,
+    `user_name` varchar(255) NOT NULL,
+    `default_config` varchar(1000) NOT NULL,
+    `created_at` datetime null,
+    `updated_at` datetime null,
+    `created_by` varchar(100) null,
+    `updated_by` varchar(100) null
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `s2_app`
+(
+    id          bigint PRIMARY KEY AUTO_INCREMENT,
+    name        VARCHAR(255),
+    description VARCHAR(255),
+    status      INT,
+    config      TEXT,
+    end_date    datetime,
+    qps         INT,
+    app_secret  VARCHAR(255),
+    owner       VARCHAR(255),
+    `created_at`     datetime null,
+    `updated_at`     datetime null,
+    `created_by`     varchar(255) null,
+    `updated_by`     varchar(255) null
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE s2_data_set
+(
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    domain_id   BIGINT,
+    `name`      VARCHAR(255),
+    biz_name    VARCHAR(255),
+    `description` VARCHAR(255),
+    `status`      INT,
+    alias       VARCHAR(255),
+    data_set_detail text,
+    created_at  datetime,
+    created_by  VARCHAR(255),
+    updated_at  datetime,
+    updated_by  VARCHAR(255),
+    query_config VARCHAR(3000),
+    `admin` varchar(3000) DEFAULT NULL,
+    `admin_org` varchar(3000) DEFAULT NULL
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS s2_tag(
+                       `id` INT NOT NULL  AUTO_INCREMENT,
+                       `item_id` INT  NOT NULL ,
+                       `type` varchar(255)  NOT NULL ,
+                       `created_at` datetime NOT NULL ,
+                       `created_by` varchar(100) NOT NULL ,
+                       `updated_at` datetime DEFAULT NULL ,
+                       `updated_by` varchar(100) DEFAULT NULL ,
+                       `ext` text DEFAULT NULL  ,
+                       PRIMARY KEY (`id`)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `s2_tag_object`
+(
+    `id`                bigint(20)   NOT NULL AUTO_INCREMENT,
+    `domain_id`         bigint(20)   DEFAULT NULL,
+    `name`              varchar(255) NOT NULL COMMENT '名称',
+    `biz_name`          varchar(255) NOT NULL COMMENT '英文名称',
+    `description`       varchar(500) DEFAULT NULL COMMENT '描述',
+    `status`            int(10) NOT NULL DEFAULT '1' COMMENT '状态',
+    `sensitive_level`   int(10) NOT NULL DEFAULT '0' COMMENT '敏感级别',
+    `created_at`        datetime     NOT NULL COMMENT '创建时间',
+    `created_by`        varchar(100) NOT NULL COMMENT '创建人',
+    `updated_at`        datetime      NULL COMMENT '更新时间',
+    `updated_by`        varchar(100)  NULL COMMENT '更新人',
+    `ext`               text DEFAULT NULL,
     PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
-CREATE TABLE `s2_materialization_element`
-(
-    `id`                 bigint(20) NOT NULL COMMENT 'element类型对应id',
-    `type`               varchar(255) NOT NULL COMMENT 'element类型 metric、dimension',
-    `materialization_id` bigint(20) NOT NULL COMMENT '关联s2_materialization主键',
-    `depends`            text COMMENT '上游依赖标识',
-    `element_type`       varchar(255) DEFAULT NULL COMMENT 'varchar,double,bigint,int,array',
-    `default_value`      varchar(255) DEFAULT NULL COMMENT '默认值',
-    `outlier`            varchar(255) DEFAULT NULL COMMENT '异常值',
-    `frequency`          varchar(255) DEFAULT NULL COMMENT '变化频率, UNKNOWN, HIGH, LOW',
-    `created_at`         datetime     DEFAULT NULL,
-    `created_by`         varchar(100) DEFAULT NULL,
-    `updated_at`         datetime     DEFAULT NULL,
-    `updated_by`         varchar(100) NOT NULL,
-    `description`        mediumtext COMMENT '备注说明',
-    `status`             int(11) NOT NULL DEFAULT '1' COMMENT '0-废弃，1-使用中',
-    PRIMARY KEY (`id`, `type`, `materialization_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-CREATE TABLE `s2_materialization_record`
-(
-    `id`                 bigint(11) NOT NULL AUTO_INCREMENT COMMENT '主键id',
-    `materialization_id` bigint(20) NOT NULL COMMENT '物化配置ID',
-    `element_type`       varchar(255) NOT NULL COMMENT 'element类型 metric、dimension',
-    `element_id`         bigint(20) DEFAULT NULL COMMENT '数据名字: 例如标签名、指标名',
-    `element_name`       varchar(255) NOT NULL COMMENT 'element 名称',
-    `data_time`          varchar(64)  DEFAULT NULL COMMENT '数据时间',
-    `state`              varchar(255) DEFAULT NULL COMMENT '任务运行状态',
-    `task_id`            varchar(255) DEFAULT NULL COMMENT '任务id',
-    `created_at`         datetime     DEFAULT NULL,
-    `updated_at`         datetime     DEFAULT NULL,
-    `created_by`         varchar(100) DEFAULT NULL,
-    `updated_by`         varchar(100) NOT NULL,
-    `retry_count`        bigint(20) NOT NULL DEFAULT '0',
-    `source_count`       bigint(20) NOT NULL DEFAULT '0',
-    `sink_count`         bigint(20) NOT NULL DEFAULT '0',
-    `message`            text COMMENT '信息',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_id` (`materialization_id`,`element_type`,`element_id`,`data_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+) ENGINE = InnoDB
+DEFAULT CHARSET = utf8 COMMENT ='标签对象表';
 
+CREATE TABLE IF NOT EXISTS `s2_query_rule` (
+    `id` bigint(20)   NOT NULL AUTO_INCREMENT,
+    `data_set_id` bigint(20) ,
+    `priority` int(10) NOT NULL DEFAULT '1' ,
+    `rule_type` varchar(255)  NOT NULL ,
+    `name` varchar(255)  NOT NULL ,
+    `biz_name` varchar(255)  NOT NULL ,
+    `description` varchar(500) DEFAULT NULL ,
+    `rule` text DEFAULT NULL  ,
+    `action` text DEFAULT NULL  ,
+    `status` INT  NOT NULL DEFAULT '1' ,
+    `created_at` datetime NOT NULL ,
+    `created_by` varchar(100) NOT NULL ,
+    `updated_at` datetime DEFAULT NULL ,
+    `updated_by` varchar(100) DEFAULT NULL ,
+    `ext` text DEFAULT NULL  ,
+    PRIMARY KEY (`id`)
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8 COMMENT ='查询规则表';
+
+CREATE TABLE IF NOT EXISTS `s2_term` (
+    `id` bigint(20) NOT NULL  AUTO_INCREMENT,
+    `domain_id` bigint(20),
+    `name` varchar(255)  NOT NULL ,
+    `description` varchar(500) DEFAULT NULL ,
+    `alias` varchar(1000)  NOT NULL ,
+    `created_at` datetime NOT NULL ,
+    `created_by` varchar(100) NOT NULL ,
+    `updated_at` datetime DEFAULT NULL ,
+    `updated_by` varchar(100) DEFAULT NULL ,
+    PRIMARY KEY (`id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8 COMMENT ='术语表';

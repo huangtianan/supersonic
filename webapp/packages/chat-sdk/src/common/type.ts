@@ -28,7 +28,7 @@ export type ModelInfoType = {
 };
 
 export type EntityInfoType = {
-  modelInfo: ModelInfoType;
+  dataSetInfo: ModelInfoType;
   dimensions: FieldType[];
   metrics: FieldType[];
   entityId: number;
@@ -37,7 +37,7 @@ export type EntityInfoType = {
 export type DateInfoType = {
   dateList: any[];
   dateMode: string;
-  period: string; 
+  period: string;
   startDate: string;
   endDate: string;
   text: string;
@@ -51,6 +51,7 @@ export type FilterItemType = {
   operator?: string;
   type?: string;
   value: any;
+  entityName?: string;
 };
 
 export type ModelType = {
@@ -59,22 +60,23 @@ export type ModelType = {
   id: number;
   model: number;
   name: string;
+  modelNames: string[];
   type: string;
   useCnt: number;
-}
+};
 
 export type EntityDimensionType = {
   bizName: string;
   itemId: number;
   name: string;
   value: string;
-}
+};
 
 export type SqlInfoType = {
   s2SQL: string;
   correctS2SQL: string;
   querySQL: string;
-}
+};
 
 export type ChatContextType = {
   id: number;
@@ -82,18 +84,20 @@ export type ChatContextType = {
   aggType: string;
   modelId: number;
   modelName: string;
-  model: ModelType;
+  dataSet: ModelType;
   dateInfo: DateInfoType;
   dimensions: FieldType[];
   metrics: FieldType[];
-  entity: { alias: string[], id: number };
+  entity: { alias: string[]; id: number };
   entityInfo: EntityInfoType;
   elementMatches: any[];
   nativeQuery: boolean;
   queryMode: string;
+  queryType: 'METRIC' | 'METRIC_TAG' | 'ID' | 'DETAIL' | 'OTHER';
   dimensionFilters: FilterItemType[];
   properties: any;
   sqlInfo: SqlInfoType;
+  textInfo: string;
 };
 
 export enum MsgValidTypeEnum {
@@ -101,26 +105,26 @@ export enum MsgValidTypeEnum {
   SEARCH_EXCEPTION = 1,
   EMPTY = 2,
   INVALID = 3,
-};
+}
 
 export type PluginResonseType = {
   description: string;
-  webPage: { url: string, paramOptions: any, params: any, valueParams: any };
+  webPage: { url: string; paramOptions: any; params: any; valueParams: any };
   pluginId: number;
   pluginType: string;
   name: string;
-}
+};
 
 export type MetricInfoType = {
   date: string;
   name: string;
   statistics: any;
   value: string;
-}
+};
 
 export type AggregateInfoType = {
-  metricInfos: MetricInfoType[]
-}
+  metricInfos: MetricInfoType[];
+};
 
 export type MsgDataType = {
   id: number;
@@ -138,6 +142,9 @@ export type MsgDataType = {
   response: PluginResonseType;
   parseInfos?: ChatContextType[];
   queryTimeCost?: number;
+  similarQueries: SimilarQuestionType[];
+  recommendedDimensions: DrillDownDimensionType[];
+  textResult: string;
 };
 
 export enum ParseStateEnum {
@@ -154,7 +161,7 @@ export type ParseDataType = {
   selectedParses: ChatContextType[];
   candidateParses: ChatContextType[];
   similarSolvedQuery: SimilarQuestionType[];
-}
+};
 
 export type QueryDataType = {
   chatContext: ChatContextType;
@@ -181,7 +188,7 @@ export enum SemanticTypeEnum {
   DIMENSION = 'DIMENSION',
   METRIC = 'METRIC',
   VALUE = 'VALUE',
-};
+}
 
 export const SEMANTIC_TYPE_MAP = {
   [SemanticTypeEnum.DOMAIN]: '数据模型',
@@ -193,7 +200,7 @@ export const SEMANTIC_TYPE_MAP = {
 export type SuggestionItemType = {
   model: number;
   name: string;
-  bizName: string
+  bizName: string;
 };
 
 export type SuggestionType = {
@@ -202,10 +209,10 @@ export type SuggestionType = {
 };
 
 export type SuggestionDataType = {
-  currentAggregateType: string,
-  columns: ColumnType[],
-  mainEntity: EntityInfoType,
-  suggestions: SuggestionType,
+  currentAggregateType: string;
+  columns: ColumnType[];
+  mainEntity: EntityInfoType;
+  suggestions: SuggestionType;
 };
 
 export type HistoryMsgItemType = {
@@ -218,6 +225,7 @@ export type HistoryMsgItemType = {
   createTime: string;
   feedback: string;
   score: number;
+  similarQueries: SimilarQuestionType[];
 };
 
 export type HistoryType = {
@@ -230,22 +238,22 @@ export type DrillDownDimensionType = {
   model: number;
   name: string;
   bizName: string;
-}
+};
 
 export type SendMsgParamsType = {
   msg: string;
   agentId: number;
   modelId: number;
   filters?: FilterItemType[];
-}
+};
 
 export type SimilarQuestionType = {
-  // queryId: number;
-  // parseId: number;
+  queryId: number;
+  parseId: number;
   queryText: string;
-}
+};
 
 export type ParseTimeCostType = {
   parseTime: number;
   sqlTime: number;
-}
+};

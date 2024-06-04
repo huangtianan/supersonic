@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Tabs } from 'antd';
-import SqlDetail from './SqlDetail';
+import SqlDetail, { DataSourceSubmitData } from './SqlDetail';
 
 import styles from '../style.less';
 
@@ -22,7 +22,7 @@ type TableRef = {
 
 type Props = {
   initialValues: any;
-  onSubmitSuccess?: (dataSourceInfo: any) => void;
+  onSubmitSuccess?: (dataSourceInfo: DataSourceSubmitData) => void;
 };
 
 const { TabPane } = Tabs;
@@ -31,14 +31,14 @@ const LIST_KEY = 'list';
 const SqlSide: React.FC<Props> = ({ initialValues, onSubmitSuccess }) => {
   const defaultPanes: Panes[] = [
     {
-      key: '数据源查询',
-      title: initialValues?.name || '数据源查询',
+      key: '模型查询',
+      title: initialValues?.name || '模型查询',
       type: 'add',
       isSave: true,
     },
   ];
 
-  const [activeKey, setActiveKey] = useState('数据源查询');
+  const [activeKey, setActiveKey] = useState('模型查询');
   const [panes, setPanes] = useState<Panes[]>(defaultPanes);
   const tableRef: TableRef = useRef();
   const panesRef = useRef<Panes[]>(defaultPanes);
@@ -63,7 +63,7 @@ const SqlSide: React.FC<Props> = ({ initialValues, onSubmitSuccess }) => {
 
   useEffect(() => {
     if (initialValues) {
-      updateTabSql(initialValues?.datasourceDetail?.sqlQuery || '', '数据源查询');
+      updateTabSql(initialValues?.modelDetail?.sqlQuery || '', '模型查询');
     }
   }, [initialValues]);
 
@@ -105,7 +105,6 @@ const SqlSide: React.FC<Props> = ({ initialValues, onSubmitSuccess }) => {
           })}
         </Tabs>
       </div>
-      {/* </SplitPane> */}
     </>
   );
 };

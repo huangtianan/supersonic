@@ -1,7 +1,7 @@
-import { Form, Input, Space, Row, Col, Switch } from 'antd';
+import { Form, Input, Space, Row, Col, Switch, Flex, Tag } from 'antd';
 import StandardFormRow from '@/components/StandardFormRow';
 import TagSelect from '@/components/TagSelect';
-import React, { useEffect } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { SENSITIVE_LEVEL_OPTIONS } from '../../constant';
 import { SearchOutlined } from '@ant-design/icons';
 import DomainTreeSelect from '../../components/DomainTreeSelect';
@@ -11,10 +11,11 @@ const FormItem = Form.Item;
 
 type Props = {
   initFilterValues?: any;
+  extraNode?: ReactNode;
   onFiltersChange: (_: any, values: any) => void;
 };
 
-const MetricFilter: React.FC<Props> = ({ initFilterValues = {}, onFiltersChange }) => {
+const MetricFilter: React.FC<Props> = ({ initFilterValues = {}, extraNode, onFiltersChange }) => {
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -33,6 +34,20 @@ const MetricFilter: React.FC<Props> = ({ initFilterValues = {}, onFiltersChange 
   };
 
   const filterList = [
+    {
+      title: '展示类型',
+      key: 'showFilter',
+      options: [
+        {
+          label: '我创建的',
+          value: 'onlyShowMe',
+        },
+        {
+          label: '我收藏的',
+          value: 'hasCollect',
+        },
+      ],
+    },
     {
       title: '敏感度',
       key: 'sensitiveLevel',
@@ -71,7 +86,7 @@ const MetricFilter: React.FC<Props> = ({ initFilterValues = {}, onFiltersChange 
               <FormItem name="key" noStyle>
                 <div className={styles.searchInput}>
                   <Input.Search
-                    placeholder="请输入需要查询指标的ID、指标名称、字段名称、标签"
+                    placeholder="请输入需要查询指标的ID、指标名称、英文名称、标签"
                     enterButton={<SearchOutlined style={{ marginTop: 5 }} />}
                     onSearch={(value) => {
                       onSearch(value);
@@ -83,39 +98,44 @@ const MetricFilter: React.FC<Props> = ({ initFilterValues = {}, onFiltersChange 
           </Row>
         </div>
       </StandardFormRow>
-      <Space size={40}>
-        <StandardFormRow key="showType" title="切换为卡片" block>
+      <Row style={{ width: '100%' }}>
+        <Col flex="auto">
+          <Space size={40}>
+            {/* <StandardFormRow key="showType" title="切换为卡片" block>
           <FormItem name="showType" valuePropName="checked">
             <Switch size="small" />
           </FormItem>
-        </StandardFormRow>
-        <StandardFormRow key="onlyShowMe" title="仅显示我的" block>
+        </StandardFormRow> */}
+            {/* <StandardFormRow key="onlyShowMe" title="仅显示我的" block>
           <FormItem name="onlyShowMe" valuePropName="checked">
             <Switch size="small" />
           </FormItem>
-        </StandardFormRow>
-        <StandardFormRow key="domainIds" title="所属主题域" block>
-          <FormItem name="domainIds">
-            <DomainTreeSelect />
-          </FormItem>
-        </StandardFormRow>
-        {filterList.map((item) => {
-          const { title, key, options } = item;
-          return (
-            <StandardFormRow key={key} title={title} block>
-              <FormItem name={key}>
-                <TagSelect reverseCheckAll single>
-                  {options.map((item: any) => (
-                    <TagSelect.Option key={item.value} value={item.value}>
-                      {item.label}
-                    </TagSelect.Option>
-                  ))}
-                </TagSelect>
+        </StandardFormRow> */}
+            <StandardFormRow key="domainIds" title="主题域" block>
+              <FormItem name="domainIds">
+                <DomainTreeSelect />
               </FormItem>
             </StandardFormRow>
-          );
-        })}
-      </Space>
+            {filterList.map((item) => {
+              const { title, key, options } = item;
+              return (
+                <StandardFormRow key={key} title={title} block>
+                  <FormItem name={key}>
+                    <TagSelect reverseCheckAll single>
+                      {options.map((item: any) => (
+                        <TagSelect.Option key={item.value} value={item.value}>
+                          {item.label}
+                        </TagSelect.Option>
+                      ))}
+                    </TagSelect>
+                  </FormItem>
+                </StandardFormRow>
+              );
+            })}
+          </Space>
+        </Col>
+        {extraNode && <Col flex="130px">{extraNode}</Col>}
+      </Row>
     </Form>
   );
 };

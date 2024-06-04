@@ -1,16 +1,16 @@
 package com.tencent.supersonic.common.util;
 
-import static com.tencent.supersonic.common.pojo.Constants.APOSTROPHE;
-import static com.tencent.supersonic.common.pojo.Constants.COMMA;
-import static com.tencent.supersonic.common.pojo.Constants.DAY;
-import static com.tencent.supersonic.common.pojo.Constants.DAY_FORMAT;
-import static com.tencent.supersonic.common.pojo.Constants.MONTH;
-import static com.tencent.supersonic.common.pojo.Constants.MONTH_FORMAT;
-import static com.tencent.supersonic.common.pojo.Constants.WEEK;
-
 import com.google.common.base.Strings;
+import com.tencent.supersonic.common.pojo.Constants;
 import com.tencent.supersonic.common.pojo.DateConf;
 import com.tencent.supersonic.common.pojo.ItemDateResp;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -21,12 +21,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
+
+import static com.tencent.supersonic.common.pojo.Constants.APOSTROPHE;
+import static com.tencent.supersonic.common.pojo.Constants.COMMA;
+import static com.tencent.supersonic.common.pojo.Constants.DAY;
+import static com.tencent.supersonic.common.pojo.Constants.DAY_FORMAT;
+import static com.tencent.supersonic.common.pojo.Constants.MONTH;
+import static com.tencent.supersonic.common.pojo.Constants.MONTH_FORMAT;
+import static com.tencent.supersonic.common.pojo.Constants.WEEK;
+import static com.tencent.supersonic.common.pojo.Constants.YEAR;
 
 
 @Slf4j
@@ -104,7 +107,6 @@ public class DateModeUtils {
         return String.format("(%s >= '%s' and %s <= '%s')", sysDateCol, dateInfo.getStartDate(), sysDateCol,
                 dateInfo.getEndDate());
     }
-
 
     public String generateMonthSql(LocalDate endData, Long unit, String dateFormatStr) {
         LocalDate dateMax = endData;
@@ -227,7 +229,6 @@ public class DateModeUtils {
         return -1L;
     }
 
-
     public String recentDateStr(ItemDateResp dateDate, DateConf dateInfo) {
         if (Objects.isNull(dateDate)) {
             return "";
@@ -252,6 +253,11 @@ public class DateModeUtils {
      */
     public String betweenDateStr(ItemDateResp dateDate, DateConf dateInfo) {
         if (MONTH.equalsIgnoreCase(dateInfo.getPeriod())) {
+            // startDate YYYYMM
+            if (!dateInfo.getStartDate().contains(Constants.MINUS)) {
+                return String.format("%s >= '%s' and %s <= '%s'",
+                        sysDateMonthCol, dateInfo.getStartDate(), sysDateMonthCol, dateInfo.getEndDate());
+            }
             LocalDate endData = LocalDate.parse(dateInfo.getEndDate(),
                     DateTimeFormatter.ofPattern(DAY_FORMAT));
             LocalDate startData = LocalDate.parse(dateInfo.getStartDate(),
@@ -306,14 +312,17 @@ public class DateModeUtils {
             return String.format("(%s >= '%s' and %s <= '%s')", sysDateCol, dateMin, sysDateCol, dateMax);
         }
 
-        if (MONTH.equalsIgnoreCase(dateInfo.getPeriod())) {
-            LocalDate dateMax = LocalDate.now().minusDays(1);
-            //return generateMonthSql(dateMax, unit.longValue(), DAY_FORMAT);
-            return recentMonthStr(dateMax, unit.longValue(), MONTH_FORMAT);
-        }
         if (WEEK.equalsIgnoreCase(dateInfo.getPeriod())) {
             LocalDate dateMax = LocalDate.now().minusDays(1);
             return recentWeekStr(dateMax, unit.longValue());
+        }
+        if (MONTH.equalsIgnoreCase(dateInfo.getPeriod())) {
+            LocalDate dateMax = LocalDate.now().minusDays(1);
+            return recentMonthStr(dateMax, unit.longValue(), MONTH_FORMAT);
+        }
+        if (YEAR.equalsIgnoreCase(dateInfo.getPeriod())) {
+            LocalDate dateMax = LocalDate.now().minusDays(1);
+            return recentMonthStr(dateMax, unit.longValue() * 12, MONTH_FORMAT);
         }
 
         return String.format("(%s >= '%s' and %s <= '%s')", sysDateCol, LocalDate.now().minusDays(2), sysDateCol,
@@ -326,6 +335,9 @@ public class DateModeUtils {
     }
 
     public String getDateWhereStr(DateConf dateInfo, ItemDateResp dateDate) {
+        if (Objects.isNull(dateInfo)) {
+            return "";
+        }
         String dateStr = "";
         switch (dateInfo.getDateMode()) {
             case BETWEEN:

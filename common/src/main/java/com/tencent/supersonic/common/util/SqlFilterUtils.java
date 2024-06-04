@@ -65,13 +65,12 @@ public class SqlFilterUtils {
                             joiner.add(SPACE + dealFilter(filter, isBizName) + SPACE);
                         }
                     });
-            log.info("getWhereClause, where sql : {}", joiner.toString());
+            log.info("getWhereClause, where sql : {}", joiner);
             return joiner.toString();
         }
 
         return "";
     }
-
 
     public String getWhereClause(List<Filter> filters) {
         return getWhereClause(filters, true);
@@ -247,6 +246,5 @@ public class SqlFilterUtils {
         }
         return PARENTHESES_START + SPACE + criterion.getValue().toString() + SPACE + PARENTHESES_END;
     }
-
 
 }

@@ -1,27 +1,26 @@
-import { Table, Transfer, Checkbox, message } from 'antd';
+import { Table, Transfer, Checkbox, message, Tooltip } from 'antd';
 import type { ColumnsType, TableRowSelection } from 'antd/es/table/interface';
 import type { TransferItem } from 'antd/es/transfer';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import difference from 'lodash/difference';
 import React, { useState, useEffect } from 'react';
-import { connect } from 'umi';
-import type { StateType } from '../model';
 import TransTypeTag from './TransTypeTag';
 import TableTitleTooltips from '../components/TableTitleTooltips';
 import { ISemantic } from '../data';
-import { getDimensionList } from '../service';
+import { EnvironmentOutlined } from '@ant-design/icons';
+import { getDimensionInModelCluster } from '../service';
 import { SemanticNodeType, TransType } from '../enum';
 
 interface RecordType {
   id: number;
   key: string;
   name: string;
+  disabled?: boolean;
   transType: TransType.DIMENSION | TransType.METRIC;
 }
 
 type Props = {
   metricItem: ISemantic.IMetricItem;
-  domainManger: StateType;
   relationsInitialValue?: ISemantic.IDrillDownDimensionItem[];
   onChange: (relations: ISemantic.IDrillDownDimensionItem[]) => void;
 };
@@ -29,29 +28,41 @@ type Props = {
 const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
   metricItem,
   relationsInitialValue,
-  domainManger,
   onChange,
 }) => {
   const [targetKeys, setTargetKeys] = useState<string[]>([]);
-  const { selectModelId: modelId } = domainManger;
   const [checkedMap, setCheckedMap] = useState<Record<string, ISemantic.IDrillDownDimensionItem>>(
     {},
   );
 
   const [dimensionList, setDimensionList] = useState<ISemantic.IDimensionItem[]>([]);
-
+  const [transferData, setTransferData] = useState<RecordType[]>([]);
   useEffect(() => {
     queryDimensionList();
   }, [metricItem, relationsInitialValue]);
 
   const queryDimensionList = async () => {
-    const { code, data, msg } = await getDimensionList({ modelId: metricItem?.modelId || modelId });
-    if (code === 200 && Array.isArray(data?.list)) {
-      setDimensionList(data.list);
+    const { code, data, msg } = await getDimensionInModelCluster(metricItem?.modelId);
+    if (code === 200 && Array.isArray(data)) {
+      setDimensionList(data);
     } else {
       message.error(msg);
     }
   };
+
+  useEffect(() => {
+    const data = dimensionList.map((item) => {
+      const transType = TransType.DIMENSION;
+      const { id } = item;
+      return {
+        ...item,
+        transType,
+        disabled: checkedMap[id]?.inheritedFromModel,
+        key: `${id}`,
+      };
+    });
+    setTransferData(data);
+  }, [checkedMap, dimensionList]);
 
   useEffect(() => {
     if (!Array.isArray(relationsInitialValue)) {
@@ -59,10 +70,9 @@ const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
     }
     const ids = relationsInitialValue.map((item) => `${item.dimensionId}`);
     const relationMap = relationsInitialValue.reduce((relationCheckedMap, item: any) => {
-      const { dimensionId, necessary } = item;
+      const { dimensionId } = item;
       relationCheckedMap[dimensionId] = {
-        dimensionId: Number(dimensionId),
-        necessary: necessary,
+        ...item,
       };
       return relationCheckedMap;
     }, {});
@@ -101,11 +111,15 @@ const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
       (relationList: ISemantic.IDrillDownDimensionItem[], dimensionId: string) => {
         const target = relationCheckedMap[dimensionId];
         if (target) {
+          if (target.inheritedFromModel === true && !target.necessary) {
+            return relationList;
+          }
           relationList.push(target);
         } else {
           relationList.push({
             dimensionId: Number(dimensionId),
             necessary: false,
+            inheritedFromModel: false,
           });
         }
         return relationList;
@@ -175,15 +189,7 @@ const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
       <Transfer
         showSearch
         titles={['未关联维度', '已关联维度']}
-        dataSource={dimensionList.map((item) => {
-          const transType = TransType.DIMENSION;
-          const { id } = item;
-          return {
-            ...item,
-            transType,
-            key: `${id}`,
-          };
-        })}
+        dataSource={transferData}
         listStyle={{
           width: 500,
           height: 600,
@@ -207,11 +213,16 @@ const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
           onItemSelectAll,
           onItemSelect,
           selectedKeys: listSelectedKeys,
+          disabled: listDisabled,
         }) => {
-          const columns = direction === 'left' ? leftColumns : rightColumns;
+          const columns: any = direction === 'left' ? leftColumns : rightColumns;
           const rowSelection: TableRowSelection<TransferItem> = {
+            getCheckboxProps: (item) => ({ disabled: listDisabled || item.disabled }),
             onSelectAll(selected, selectedRows) {
-              const treeSelectedKeys = selectedRows.map(({ key }) => key);
+              const treeSelectedKeys = selectedRows
+                .filter((item) => !item.disabled)
+                .map(({ key }) => key);
+
               const diffKeys = selected
                 ? difference(treeSelectedKeys, listSelectedKeys)
                 : difference(listSelectedKeys, treeSelectedKeys);
@@ -221,6 +232,16 @@ const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
               onItemSelect(key as string, selected);
             },
             selectedRowKeys: listSelectedKeys,
+            renderCell: function (checked, record, index, originNode) {
+              if (checkedMap[record.id]?.inheritedFromModel === true) {
+                return (
+                  <Tooltip title="来自模型默认设置维度">
+                    <EnvironmentOutlined style={{ color: '#0958d9' }} />
+                  </Tooltip>
+                );
+              }
+              return originNode;
+            },
           };
 
           return (
@@ -229,10 +250,17 @@ const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
               columns={columns}
               dataSource={filteredItems as any}
               size="small"
+              rowClassName={(record) => {
+                if (checkedMap[record.id]?.inheritedFromModel) {
+                  return 'inherit-from-model-row';
+                }
+                return '';
+              }}
               pagination={false}
               scroll={{ y: 450 }}
-              onRow={({ key }) => ({
+              onRow={({ key, disabled: itemDisabled }) => ({
                 onClick: () => {
+                  if (itemDisabled || listDisabled) return;
                   onItemSelect(key as string, !listSelectedKeys.includes(key as string));
                 },
               })}
@@ -244,6 +272,4 @@ const DimensionMetricRelationTableTransfer: React.FC<Props> = ({
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(DimensionMetricRelationTableTransfer);
+export default DimensionMetricRelationTableTransfer;

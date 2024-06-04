@@ -10,7 +10,7 @@ import java.util.List;
 class DateUtilsTest {
 
     @Test
-    void getBeforeDate() {
+    void testGetBeforeDate() {
 
         String dateStr = DateUtils.getBeforeDate("2023-08-10", 1, DatePeriodEnum.DAY);
         Assert.assertEquals(dateStr, "2023-08-09");
@@ -38,18 +38,6 @@ class DateUtilsTest {
 
         dateStr = DateUtils.getBeforeDate("2023-08-10", 0, DatePeriodEnum.YEAR);
         Assert.assertEquals(dateStr, "2023-01-01");
-
-        dateStr = DateUtils.getBeforeDate(0, DatePeriodEnum.DAY);
-        //Assert.assertEquals(dateStr, "2023-09-08");
-
-        dateStr = DateUtils.getBeforeDate(1, DatePeriodEnum.DAY);
-        //Assert.assertEquals(dateStr, "2023-09-07");
-
-        dateStr = DateUtils.getBeforeDate(1, DatePeriodEnum.WEEK);
-        //Assert.assertEquals(dateStr, "2023-09-01");
-
-        dateStr = DateUtils.getBeforeDate(1, DatePeriodEnum.MONTH);
-        //Assert.assertEquals(dateStr, "2023-08-08");
     }
 
     @Test
@@ -77,8 +65,7 @@ class DateUtilsTest {
         String startDate = "2023-07-01";
         String endDate = "2023-10-01";
         List<String> actualDateList = DateUtils.getDateList(startDate, endDate, Constants.MONTH);
-        List<String> expectedDateList = Lists.newArrayList("2023-07-01", "2023-08-01",
-                "2023-09-01", "2023-10-01");
+        List<String> expectedDateList = Lists.newArrayList("2023-07", "2023-08", "2023-09", "2023-10");
         Assertions.assertEquals(actualDateList, expectedDateList);
     }
 }

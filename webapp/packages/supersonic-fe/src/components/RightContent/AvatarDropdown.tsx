@@ -4,7 +4,6 @@ import { useModel } from 'umi';
 import HeaderDropdown from '../HeaderDropdown';
 import styles from './index.less';
 import TMEAvatar from '../TMEAvatar';
-import cx from 'classnames';
 import { AUTH_TOKEN_KEY } from '@/common/constants';
 import { history } from 'umi';
 
@@ -27,9 +26,7 @@ const { APP_TARGET } = process.env;
 
 const AvatarDropdown: React.FC<GlobalHeaderRightProps> = () => {
   const { initialState = {}, setInitialState } = useModel('@@initialState');
-
   const { currentUser = {} } = initialState as any;
-
   const items = [
     {
       label: (
@@ -54,7 +51,7 @@ const AvatarDropdown: React.FC<GlobalHeaderRightProps> = () => {
     <HeaderDropdown menu={{ items }} disabled={APP_TARGET === 'inner'}>
       <span className={`${styles.action} ${styles.account}`}>
         <TMEAvatar className={styles.avatar} size="small" staffName={currentUser.staffName} />
-        <span className={cx(styles.name, 'anticon')}>{currentUser.staffName}</span>
+        <span className={styles.userName}>{currentUser.staffName}</span>
       </span>
     </HeaderDropdown>
   );

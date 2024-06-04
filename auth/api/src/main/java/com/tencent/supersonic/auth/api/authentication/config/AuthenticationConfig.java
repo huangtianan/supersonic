@@ -24,4 +24,15 @@ public class AuthenticationConfig {
     @Value("${authentication.token.http.header.key:Authorization}")
     private String tokenHttpHeaderKey;
 
+    @Value("${authentication.app.appId:appId}")
+    private String appId;
+
+    @Value("${authentication.app.timestamp:timestamp}")
+    private String timestamp;
+
+    @Value("${authentication.app.signature:signature}")
+    private String signature;
+
+    @Value("${authentication.token.timeout:7200000}")
+    private Long tokenTimeout;
 }

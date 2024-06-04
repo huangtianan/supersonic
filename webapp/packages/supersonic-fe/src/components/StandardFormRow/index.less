@@ -1,9 +1,8 @@
-@import '~antd/es/style/themes/default.less';
 
 .standardFormRow {
   display: flex;
   width: 100%;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   // padding-bottom: 16px;
   // border-bottom: 1px dashed @border-color-split;
   :global {
@@ -15,7 +14,7 @@
     .ant-legacy-form-item-label {
       label {
         margin-right: 0;
-        color: @text-color;
+        color: fade(#000, 85%);
       }
     }
     .ant-form-item-label,
@@ -29,8 +28,8 @@
   .label {
     flex: 0 0 auto;
     margin-right: 12px;
-    color: @heading-color;
-    font-size: @font-size-base;
+    color:  fade(#000, 85%);
+    font-size: 14px;
     text-align: left;
     & > span {
       display: inline-block;

@@ -1,15 +1,11 @@
 import { Space, Checkbox } from 'antd';
 import type { CheckboxValueType } from 'antd/es/checkbox/Group';
 import React, { useState, useEffect } from 'react';
-
-import { connect } from 'umi';
-import type { StateType } from '../../model';
 import styles from '../style.less';
 
 type Props = {
   legendOptions: LegendOptionsItem[];
   value?: string[];
-  domainManger: StateType;
   onChange?: (ids: CheckboxValueType[]) => void;
   defaultCheckAll?: boolean;
   [key: string]: any;
@@ -60,7 +56,7 @@ const GraphLegend: React.FC<Props> = ({
     <div className={styles.graphLegend}>
       <Checkbox.Group style={{ width: '100%' }} onChange={handleChange} value={groupValue}>
         <div style={{ width: '100%', maxWidth: '450px' }}>
-          <div className={styles.title}>可见数据源</div>
+          <div className={styles.title}>可见模型</div>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <Space wrap size={[8, 16]}>
               {legendOptions.map((item) => {
@@ -78,6 +74,4 @@ const GraphLegend: React.FC<Props> = ({
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(GraphLegend);
+export default GraphLegend;

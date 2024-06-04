@@ -9,8 +9,10 @@ import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.operators.relational.ComparisonOperator;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
@@ -48,7 +50,6 @@ public class FunctionReplaceVisitor extends ExpressionVisitorAdapter {
         }
     }
 
-
     @Override
     public void visit(GreaterThan expr) {
         List<Expression> expressions = reparseDate(expr, "<");
@@ -69,7 +70,6 @@ public class FunctionReplaceVisitor extends ExpressionVisitorAdapter {
         return waitingForAdds;
     }
 
-
     public List<Expression> reparseDate(ComparisonOperator comparisonOperator, String startDateOperator) {
         List<Expression> result = new ArrayList<>();
         Expression leftExpression = comparisonOperator.getLeftExpression();
@@ -80,7 +80,8 @@ public class FunctionReplaceVisitor extends ExpressionVisitorAdapter {
         if (!leftExpressionFunction.toString().contains(JsqlConstants.DATE_FUNCTION)) {
             return result;
         }
-        List<Expression> leftExpressions = leftExpressionFunction.getParameters().getExpressions();
+        //List<Expression> leftExpressions = leftExpressionFunction.getParameters().getExpressions();
+        ExpressionList<?> leftExpressions = leftExpressionFunction.getParameters();
         if (CollectionUtils.isEmpty(leftExpressions) || leftExpressions.size() < 3) {
             return result;
         }
@@ -97,19 +98,19 @@ public class FunctionReplaceVisitor extends ExpressionVisitorAdapter {
 
             String startDataCondExpr =
                     columnName + StringUtil.getSpaceWrap(startDateOperator) + StringUtil.getCommaWrap(startDateValue);
-
             if (JsqlConstants.EQUAL.equalsIgnoreCase(endDateOperator)) {
                 result.add(CCJSqlParserUtil.parseCondExpression(condExpr));
                 expression = (ComparisonOperator) CCJSqlParserUtil.parseCondExpression(JsqlConstants.EQUAL_CONSTANT);
             }
-            comparisonOperator.setLeftExpression(null);
-            comparisonOperator.setRightExpression(null);
-            comparisonOperator.setASTNode(null);
-
-            comparisonOperator.setLeftExpression(expression.getLeftExpression());
-            comparisonOperator.setRightExpression(expression.getRightExpression());
-            comparisonOperator.setASTNode(expression.getASTNode());
-
+            if (startDateOperator.equals("<=") || startDateOperator.equals("<")) {
+                comparisonOperator.setLeftExpression(new Column("1"));
+                comparisonOperator.setRightExpression(new LongValue(1));
+                comparisonOperator.setASTNode(null);
+            } else {
+                comparisonOperator.setLeftExpression(expression.getLeftExpression());
+                comparisonOperator.setRightExpression(expression.getRightExpression());
+                comparisonOperator.setASTNode(expression.getASTNode());
+            }
             result.add(CCJSqlParserUtil.parseCondExpression(startDataCondExpr));
             return result;
         } catch (JSQLParserException e) {

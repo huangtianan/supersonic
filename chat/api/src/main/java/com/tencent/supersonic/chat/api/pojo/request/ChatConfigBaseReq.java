@@ -16,21 +16,16 @@ public class ChatConfigBaseReq {
 
     private Long modelId;
 
-    /**
-     * the chatDetailConfig about the model
-     */
-    private ChatDetailConfigReq chatDetailConfig;
-
-    /**
-     * the chatAggConfig about the model
-     */
-    private ChatAggConfigReq chatAggConfig;
-
 
     /**
      * the recommended questions about the model
      */
     private List<RecommendedQuestionReq> recommendedQuestions;
+
+    /**
+     *  the llm examples about the model
+     */
+    private String llmExamples;
 
     /**
      * available status

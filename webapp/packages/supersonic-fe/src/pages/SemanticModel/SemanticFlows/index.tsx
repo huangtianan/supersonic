@@ -27,8 +27,7 @@ import { useMenuConfig } from './ConfigMenu';
 import { useToolbarConfig } from './ConfigToolbar';
 /** 配置Dnd组件面板 */
 import * as dndPanelConfig from './ConfigDndPanel';
-import { connect } from 'umi';
-import type { StateType } from '../model';
+import { useModel } from '@umijs/max';
 import './index.less';
 import XflowJsonSchemaFormDrawer from './components/XflowJsonSchemaFormDrawer';
 import { getViewInfoList } from '../service';
@@ -36,14 +35,19 @@ import { getGraphConfigFromList } from './utils';
 import type { GraphConfig } from './data';
 import '@antv/xflow/dist/index.css';
 
-import './ReactNodes/ToolTipsNode';
+import { registerEdgeTool } from './ReactNodes/ToolTipsNode';
 
-export interface IProps {
-  domainManger: StateType;
-}
+export interface IProps {}
 
 export const SemanticFlow: React.FC<IProps> = (props) => {
-  const { domainManger } = props;
+  const domainModel = useModel('SemanticModel.domainData');
+  const modelModel = useModel('SemanticModel.modelData');
+  const { selectDomain } = domainModel;
+  const { selectModel } = modelModel;
+  const domainManger: any = {
+    ...selectDomain,
+    ...selectModel,
+  };
 
   const graphHooksConfig = useGraphHookConfig(props);
   const toolbarConfig = useToolbarConfig();
@@ -56,6 +60,8 @@ export const SemanticFlow: React.FC<IProps> = (props) => {
     flowId: 'semanticFlow',
     domainManger,
   });
+
+  registerEdgeTool();
 
   const cache =
     React.useMemo<{ app: IApplication } | null>(
@@ -146,6 +152,4 @@ export const SemanticFlow: React.FC<IProps> = (props) => {
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(SemanticFlow);
+export default SemanticFlow;

@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.type.CollectionType;
 import com.fasterxml.jackson.databind.type.MapType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.security.InvalidParameterException;
@@ -19,10 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -32,7 +30,6 @@ public class JsonUtil {
 
     public static final JsonUtil INSTANCE = new JsonUtil();
 
-    @Setter
     @Getter
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -41,6 +38,10 @@ public class JsonUtil {
         objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         //允许使用未带引号的字段名
         objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+        //忽略未知enum字段，置为null
+        objectMapper.configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
+        //反序列化忽略未知字段
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         //允许使用单引号
         objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
         // 遇到空对象不抛异常
@@ -170,7 +171,6 @@ public class JsonUtil {
     public static <T> T mapToObject(Map<?, ?> map, Class<T> clazz) {
         return INSTANCE.asmapToObject(map, clazz);
     }
-
 
     /**
      * 对象转json
@@ -418,7 +418,6 @@ public class JsonUtil {
         });
     }
 
-
     /**
      * 对象转换成Map
      */
@@ -444,7 +443,6 @@ public class JsonUtil {
         }
         return objectMapper.convertValue(map, clazz);
     }
-
 
     /**
      * Json转换成ListMap

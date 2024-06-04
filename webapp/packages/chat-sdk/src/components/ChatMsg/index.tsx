@@ -1,12 +1,13 @@
 import Bar from './Bar';
 import MetricCard from './MetricCard';
 import MetricTrend from './MetricTrend';
+import MarkDown from './MarkDown';
 import Table from './Table';
 import { ColumnType, DrillDownDimensionType, FieldType, MsgDataType } from '../../common/type';
 import { useEffect, useState } from 'react';
 import { queryData } from '../../service';
 import classNames from 'classnames';
-import { PREFIX_CLS } from '../../common/constants';
+import { PREFIX_CLS, MsgContentTypeEnum } from '../../common/constants';
 import Text from './Text';
 import DrillDownDimensions from '../DrillDownDimensions';
 import MetricOptions from '../MetricOptions';
@@ -17,16 +18,29 @@ type Props = {
   data: MsgDataType;
   chartIndex: number;
   triggerResize?: boolean;
+  forceShowTable?: boolean;
+  isSimpleMode?: boolean;
+  onMsgContentTypeChange?: (MsgContentTypeEnum) => void;
 };
 
-const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) => {
+const ChatMsg: React.FC<Props> = ({
+  queryId,
+  data,
+  chartIndex,
+  triggerResize,
+  forceShowTable = false,
+  isSimpleMode,
+  onMsgContentTypeChange,
+}) => {
   const { queryColumns, queryResults, chatContext, queryMode } = data || {};
   const { dimensionFilters, elementMatches } = chatContext || {};
 
-  const [columns, setColumns] = useState<ColumnType[]>();
+  const [columns, setColumns] = useState<ColumnType[]>([]);
   const [referenceColumn, setReferenceColumn] = useState<ColumnType>();
   const [dataSource, setDataSource] = useState<any[]>(queryResults);
   const [drillDownDimension, setDrillDownDimension] = useState<DrillDownDimensionType>();
+  const [secondDrillDownDimension, setSecondDrillDownDimension] =
+    useState<DrillDownDimensionType>();
   const [loading, setLoading] = useState(false);
   const [defaultMetricField, setDefaultMetricField] = useState<FieldType>();
   const [activeMetricField, setActiveMetricField] = useState<FieldType>();
@@ -48,96 +62,153 @@ const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) 
     setActiveMetricField(chatContext?.metrics?.[0]);
     setDateModeValue(chatContext?.dateInfo?.dateMode);
     setCurrentDateOption(chatContext?.dateInfo?.unit);
+    setDrillDownDimension(undefined);
+    setSecondDrillDownDimension(undefined);
   }, [data]);
+  const metricFields = columns.filter(item => item.showType === 'NUMBER');
+  const getMsgContentType = () => {
+    const singleData = dataSource.length === 1;
+    const dateField = columns.find(item => item.showType === 'DATE' || item.type === 'DATE');
+    const categoryField = columns.filter(item => item.showType === 'CATEGORY');
+    const metricFields = columns.filter(item => item.showType === 'NUMBER');
+    if (!columns) {
+      return;
+    }
+    if (isSimpleMode) {
+      return MsgContentTypeEnum.MARKDOWN;
+    }
+    if (forceShowTable) {
+      return MsgContentTypeEnum.TABLE;
+    }
+    const isDslMetricCard =
+      queryMode === 'LLM_S2SQL' && singleData && metricFields.length === 1 && columns.length === 1;
+
+    const isMetricCard = (queryMode.includes('METRIC') || isDslMetricCard) && singleData;
+
+    const isText =
+      columns.length === 1 &&
+      columns[0].showType === 'CATEGORY' &&
+      ((!queryMode.includes('METRIC') && !queryMode.includes('ENTITY')) ||
+        queryMode === 'METRIC_INTERPRET') &&
+      singleData;
+    if (isText) {
+      return MsgContentTypeEnum.TEXT;
+    }
+
+    if (isMetricCard) {
+      return MsgContentTypeEnum.METRIC_CARD;
+    }
+
+    const isTable =
+      !isText &&
+      !isMetricCard &&
+      (categoryField.length > 1 ||
+        queryMode === 'TAG_DETAIL' ||
+        queryMode === 'ENTITY_DIMENSION' ||
+        (categoryField.length === 1 && metricFields.length === 0));
+
+    if (isTable) {
+      return MsgContentTypeEnum.TABLE;
+    }
+    const isMetricTrend =
+      dateField &&
+      metricFields.length > 0 &&
+      !dataSource.every(item => item[dateField.nameEn] === dataSource[0][dateField.nameEn]);
+
+    if (isMetricTrend) {
+      return MsgContentTypeEnum.METRIC_TREND;
+    }
+
+    const isMetricBar =
+      categoryField?.length > 0 &&
+      metricFields?.length > 0 &&
+      (isMobile ? dataSource?.length <= 5 : dataSource?.length <= 50);
+
+    if (isMetricBar) {
+      return MsgContentTypeEnum.METRIC_BAR;
+    }
+    return MsgContentTypeEnum.TABLE;
+  };
+
+  useEffect(() => {
+    const type = getMsgContentType();
+    if (type) {
+      onMsgContentTypeChange?.(type);
+    }
+  }, [data, columns, isSimpleMode]);
 
   if (!queryColumns || !queryResults || !columns) {
     return null;
   }
 
-  const singleData = dataSource.length === 1;
-  const dateField = columns.find(item => item.showType === 'DATE' || item.type === 'DATE');
-  const categoryField = columns.filter(item => item.showType === 'CATEGORY');
-  const metricFields = columns.filter(item => item.showType === 'NUMBER');
-
-  const isDslMetricCard =
-    queryMode === 'LLM_S2SQL' && singleData && metricFields.length === 1 && columns.length === 1;
-
-  const isMetricCard = (queryMode.includes('METRIC') || isDslMetricCard) && singleData;
-
-  const isText =
-    columns.length === 1 &&
-    columns[0].showType === 'CATEGORY' &&
-    ((!queryMode.includes('METRIC') && !queryMode.includes('ENTITY')) ||
-      queryMode === 'METRIC_INTERPRET') &&
-    singleData;
-
-  const isTable =
-    !isText &&
-    !isMetricCard &&
-    (categoryField.length > 1 ||
-      queryMode === 'ENTITY_DETAIL' ||
-      queryMode === 'ENTITY_DIMENSION' ||
-      (categoryField.length === 1 && metricFields.length === 0));
-
   const getMsgContent = () => {
-    if (isText) {
-      return <Text columns={columns} referenceColumn={referenceColumn} dataSource={dataSource} />;
+    const contentType = getMsgContentType();
+    switch (contentType) {
+      case MsgContentTypeEnum.TEXT:
+        return <Text columns={columns} referenceColumn={referenceColumn} dataSource={dataSource} />;
+      case MsgContentTypeEnum.METRIC_CARD:
+        return (
+          <MetricCard
+            data={{ ...data, queryColumns: columns, queryResults: dataSource }}
+            loading={loading}
+          />
+        );
+      case MsgContentTypeEnum.TABLE:
+        return (
+          <Table
+            data={{ ...data, queryColumns: columns, queryResults: dataSource }}
+            loading={loading}
+          />
+        );
+      case MsgContentTypeEnum.METRIC_TREND:
+        return (
+          <MetricTrend
+            data={{
+              ...data,
+              queryColumns: columns,
+              queryResults: dataSource,
+            }}
+            loading={loading}
+            chartIndex={chartIndex}
+            triggerResize={triggerResize}
+            activeMetricField={activeMetricField}
+            drillDownDimension={drillDownDimension}
+            currentDateOption={currentDateOption}
+            onSelectDateOption={selectDateOption}
+          />
+        );
+      case MsgContentTypeEnum.METRIC_BAR:
+        return (
+          <Bar
+            data={{ ...data, queryColumns: columns, queryResults: dataSource }}
+            triggerResize={triggerResize}
+            loading={loading}
+            metricField={metricFields[0]}
+          />
+        );
+      case MsgContentTypeEnum.MARKDOWN:
+        return (
+          <div style={{ maxHeight: 800, overflow: 'scroll' }}>
+            <MarkDown markdown={data.textResult} loading={loading} />
+          </div>
+        );
+      default:
+        return (
+          <Table
+            data={{ ...data, queryColumns: columns, queryResults: dataSource }}
+            loading={loading}
+          />
+        );
     }
-    if (isMetricCard) {
-      return (
-        <MetricCard
-          data={{ ...data, queryColumns: columns, queryResults: dataSource }}
-          loading={loading}
-        />
-      );
-    }
-    if (isTable) {
-      return <Table data={{ ...data, queryColumns: columns, queryResults: dataSource }} />;
-    }
-    if (
-      dateField &&
-      metricFields.length > 0 &&
-      !dataSource.every(item => item[dateField.nameEn] === dataSource[0][dateField.nameEn])
-    ) {
-      return (
-        <MetricTrend
-          data={{
-            ...data,
-            queryColumns: columns,
-            queryResults: dataSource,
-          }}
-          loading={loading}
-          chartIndex={chartIndex}
-          triggerResize={triggerResize}
-          activeMetricField={activeMetricField}
-          drillDownDimension={drillDownDimension}
-          currentDateOption={currentDateOption}
-          onSelectDateOption={selectDateOption}
-        />
-      );
-    }
-    if (
-      categoryField?.length > 0 &&
-      metricFields?.length > 0 &&
-      (isMobile ? dataSource?.length <= 20 : dataSource?.length <= 50)
-    ) {
-      return (
-        <Bar
-          data={{ ...data, queryColumns: columns, queryResults: dataSource }}
-          triggerResize={triggerResize}
-          loading={loading}
-        />
-      );
-    }
-    return <Table data={{ ...data, queryColumns: columns, queryResults: dataSource }} />;
   };
 
   const onLoadData = async (value: any) => {
     setLoading(true);
     const res: any = await queryData({
+      ...chatContext,
+      ...value,
       queryId,
       parseId: chatContext.id,
-      ...value,
     });
     setLoading(false);
     if (res.code === 200) {
@@ -146,7 +217,8 @@ const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) 
     }
   };
 
-  const onSelectDimension = (dimension?: DrillDownDimensionType) => {
+  const onSelectDimension = async (dimension?: DrillDownDimensionType) => {
+    setLoading(true);
     setDrillDownDimension(dimension);
     onLoadData({
       dateInfo: {
@@ -157,6 +229,23 @@ const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) 
       dimensions: dimension
         ? [...(chatContext.dimensions || []), dimension]
         : chatContext.dimensions,
+      metrics: [activeMetricField || defaultMetricField],
+    });
+  };
+
+  const onSelectSecondDimension = (dimension?: DrillDownDimensionType) => {
+    setSecondDrillDownDimension(dimension);
+    onLoadData({
+      dateInfo: {
+        ...chatContext.dateInfo,
+        dateMode: dateModeValue,
+        unit: currentDateOption || chatContext.dateInfo.unit,
+      },
+      dimensions: [
+        ...(chatContext.dimensions || []),
+        ...(drillDownDimension ? [drillDownDimension] : []),
+        ...(dimension ? [dimension] : []),
+      ],
       metrics: [activeMetricField || defaultMetricField],
     });
   };
@@ -192,18 +281,25 @@ const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) 
     });
   };
 
-  const chartMsgClass = classNames({ [prefixCls]: !isTable });
+  const chartMsgClass = classNames({
+    [prefixCls]: ![MsgContentTypeEnum.TABLE, MsgContentTypeEnum.MARKDOWN].includes(
+      getMsgContentType() as MsgContentTypeEnum
+    ),
+  });
 
   const entityId = dimensionFilters?.length > 0 ? dimensionFilters[0].value : undefined;
   const entityName = elementMatches?.find((item: any) => item.element?.type === 'ID')?.element
     ?.name;
 
   const isEntityMode =
-    (queryMode === 'ENTITY_LIST_FILTER' || queryMode === 'METRIC_ENTITY') &&
+    (queryMode === 'TAG_LIST_FILTER' || queryMode === 'METRIC_TAG') &&
     typeof entityId === 'string' &&
     entityName !== undefined;
 
-  const existDrillDownDimension = queryMode.includes('METRIC') && !isText && !isEntityMode;
+  const existDrillDownDimension =
+    queryMode.includes('METRIC') &&
+    getMsgContentType() !== MsgContentTypeEnum.TEXT &&
+    !isEntityMode;
 
   const recommendMetrics = chatContext?.metrics?.filter(metric =>
     queryColumns.every(queryColumn => queryColumn.nameEn !== metric.bizName)
@@ -221,16 +317,17 @@ const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) 
       ) : (
         <div>
           {getMsgContent()}
-          {(isMultipleMetric || existDrillDownDimension) && (
+          {(isMultipleMetric || existDrillDownDimension) && !isSimpleMode && (
             <div
               className={`${prefixCls}-bottom-tools ${
-                isMetricCard ? `${prefixCls}-metric-card-tools` : ''
-              }`}
+                getMsgContentType() === MsgContentTypeEnum.METRIC_CARD
+                  ? `${prefixCls}-metric-card-tools`
+                  : ''
+              } ${isMobile ? 'mobile' : ''}`}
             >
               {isMultipleMetric && (
                 <MetricOptions
-                  // metrics={chatContext.metrics}
-                  metrics={recommendMetrics}
+                  metrics={chatContext.metrics}
                   defaultMetric={defaultMetricField}
                   currentMetric={activeMetricField}
                   onSelectMetric={onSwitchMetric}
@@ -238,12 +335,13 @@ const ChatMsg: React.FC<Props> = ({ queryId, data, chartIndex, triggerResize }) 
               )}
               {existDrillDownDimension && (
                 <DrillDownDimensions
-                  modelId={chatContext.modelId}
-                  metricId={activeMetricField?.id || defaultMetricField?.id}
+                  drillDownDimensions={data?.recommendedDimensions || []}
                   drillDownDimension={drillDownDimension}
+                  secondDrillDownDimension={secondDrillDownDimension}
                   originDimensions={chatContext.dimensions}
                   dimensionFilters={chatContext.dimensionFilters}
                   onSelectDimension={onSelectDimension}
+                  onSelectSecondDimension={onSelectSecondDimension}
                 />
               )}
             </div>

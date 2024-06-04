@@ -8,28 +8,37 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class EmbeddingConfig {
 
-    @Value("${embedding.url:}")
+    @Value("${s2.embedding.url:}")
     private String url;
 
-    @Value("${embedding.recognize.path:/preset_query_retrival}")
+    @Value("${s2.embedding.persistent.path:/tmp}")
+    private String embeddingStorePersistentPath;
+
+    @Value("${s2.embedding.recognize.path:/preset_query_retrival}")
     private String recognizePath;
 
-    @Value("${embedding.delete.path:/preset_delete_by_ids}")
-    private String deletePath;
+    @Value("${s2.embedding.preset.collection:preset_query_collection}")
+    private String presetCollection;
 
-    @Value("${embedding.add.path:/preset_query_add}")
-    private String addPath;
+    @Value("${s2.embedding.meta.collection:meta_collection}")
+    private String metaCollectionName;
 
-    @Value("${embedding.nResult:1}")
-    private String nResult;
+    @Value("${s2.embedding.nResult:1}")
+    private int nResult;
 
-    @Value("${embedding.solvedQuery.recall.path:/solved_query_retrival}")
-    private String solvedQueryRecallPath;
+    @Value("${s2.embedding.solved.query.collection:solved_query_collection}")
+    private String solvedQueryCollection;
 
-    @Value("${embedding.solvedQuery.add.path:/solved_query_add}")
-    private String solvedQueryAddPath;
+    @Value("${s2.embedding.solved.query.nResult:5}")
+    private int solvedQueryResultNum;
 
-    @Value("${embedding.solved.query.nResult:5}")
-    private String solvedQueryResultNum;
+    @Value("${s2.embedding.metric.analyzeQuery.collection:solved_query_collection}")
+    private String metricAnalyzeQueryCollection;
+
+    @Value("${text2sql.collection.name:text2dsl_agent_collection}")
+    private String text2sqlCollectionName;
+
+    @Value("${s2.embedding.metric.analyzeQuery.nResult:5}")
+    private int metricAnalyzeQueryResultNum;
 
 }

@@ -1,2 +1,0 @@
-com.tencent.supersonic.common.util.cache.CacheUtils=\
-    com.tencent.supersonic.common.util.cache.CaffeineCacheImpl

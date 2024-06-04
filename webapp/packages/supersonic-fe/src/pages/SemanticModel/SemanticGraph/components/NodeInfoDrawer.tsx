@@ -2,17 +2,13 @@ import { Button, Drawer, message, Row, Col, Divider, Tag, Space, Popconfirm } fr
 import React, { useState, useEffect, ReactNode } from 'react';
 import { SemanticNodeType } from '../../enum';
 import { deleteDimension, deleteMetric, deleteDatasource } from '../../service';
-import { connect } from 'umi';
-import type { StateType } from '../../model';
 import moment from 'moment';
 import styles from '../style.less';
 import TransTypeTag from '../../components/TransTypeTag';
-import MetricTrendSection from '@/pages/SemanticModel/Metric/components/MetricTrendSection';
 import { SENSITIVE_LEVEL_ENUM } from '../../constant';
 
 type Props = {
   nodeData: any;
-  domainManger: StateType;
   onNodeChange: (params?: { eventName?: string }) => void;
   onEditBtnClick?: (nodeData: any) => void;
   [key: string]: any;
@@ -48,13 +44,11 @@ const DescriptionItem = ({ title, content }: DescriptionItemProps) => (
 
 const NodeInfoDrawer: React.FC<Props> = ({
   nodeData,
-  domainManger,
   onNodeChange,
   onEditBtnClick,
   ...restProps
 }) => {
   const [infoList, setInfoList] = useState<InfoListItem[]>([]);
-  const { selectModelName } = domainManger;
 
   useEffect(() => {
     if (!nodeData) {
@@ -77,7 +71,7 @@ const NodeInfoDrawer: React.FC<Props> = ({
         title: '基本信息',
         children: [
           {
-            label: '字段名称',
+            label: '英文名称',
             value: bizName,
           },
           {
@@ -88,7 +82,7 @@ const NodeInfoDrawer: React.FC<Props> = ({
           {
             label: '所属模型',
             value: modelName,
-            content: <Tag>{modelName || selectModelName}</Tag>,
+            content: <Tag>{modelName}</Tag>,
           },
 
           {
@@ -105,16 +99,6 @@ const NodeInfoDrawer: React.FC<Props> = ({
             value: SENSITIVE_LEVEL_ENUM[sensitiveLevel],
           },
         ],
-      },
-      {
-        title: '指标趋势',
-        render: () => (
-          <Row key={`metricTrendSection`} style={{ marginBottom: 10, display: 'flex' }}>
-            <Col span={24}>
-              <MetricTrendSection nodeData={nodeData} />
-            </Col>
-          </Row>
-        ),
       },
       {
         title: '创建信息',
@@ -142,11 +126,6 @@ const NodeInfoDrawer: React.FC<Props> = ({
           {
             label: '英文名称',
             value: bizName,
-          },
-          {
-            label: '所属模型',
-            value: modelName,
-            content: <Tag>{modelName || selectModelName}</Tag>,
           },
           {
             label: '描述',
@@ -277,6 +256,4 @@ const NodeInfoDrawer: React.FC<Props> = ({
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(NodeInfoDrawer);
+export default NodeInfoDrawer;

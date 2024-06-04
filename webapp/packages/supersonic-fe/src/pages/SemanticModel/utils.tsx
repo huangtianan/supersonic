@@ -1,6 +1,14 @@
 import type { API } from '@/services/API';
 import { ISemantic } from './data';
 import type { DataNode } from 'antd/lib/tree';
+import { Form, Input, InputNumber, Switch, Select } from 'antd';
+import FormItemTitle from '@/components/FormHelper/FormItemTitle';
+import DisabledWheelNumberInput from '@/components/DisabledWheelNumberInput';
+import { ConfigParametersItem } from '../System/types';
+import { TransType } from './enum';
+
+const FormItem = Form.Item;
+const { TextArea } = Input;
 
 export const changeTreeData = (treeData: API.DomainList, auth?: boolean): DataNode[] => {
   return treeData.map((item: any) => {
@@ -15,7 +23,7 @@ export const changeTreeData = (treeData: API.DomainList, auth?: boolean): DataNo
 };
 
 export const addPathInTreeData = (treeData: API.DomainList, loopPath: any[] = []): any => {
-  return treeData.map((item: any) => {
+  return treeData?.map((item: any) => {
     const { children, parentId = [] } = item;
     const path = loopPath.slice();
     path.push(parentId);
@@ -34,7 +42,7 @@ export const addPathInTreeData = (treeData: API.DomainList, loopPath: any[] = []
 };
 
 export const constructorClassTreeFromList = (list: any[], parentId: number = 0) => {
-  const tree = list.reduce((nodeList, nodeItem) => {
+  const tree = list?.reduce((nodeList, nodeItem) => {
     if (nodeItem.parentId == parentId) {
       const children = constructorClassTreeFromList(list, nodeItem.id);
       if (children.length) {
@@ -42,7 +50,7 @@ export const constructorClassTreeFromList = (list: any[], parentId: number = 0) 
       }
       nodeItem.key = nodeItem.id;
       nodeItem.value = nodeItem.id;
-      nodeItem.title = nodeItem.name;
+      nodeItem.title = nodeItem.name || nodeItem.categoryName;
       nodeList.push(nodeItem);
     }
     return nodeList;
@@ -52,7 +60,7 @@ export const constructorClassTreeFromList = (list: any[], parentId: number = 0) 
 
 export const treeParentKeyLists = (treeData: API.DomainList): string[] => {
   let keys: string[] = [];
-  treeData.forEach((item: any) => {
+  treeData?.forEach((item: any) => {
     if (item.children && item.children.length > 0) {
       keys.push(item.id);
       keys = keys.concat(treeParentKeyLists(item.children));
@@ -124,4 +132,77 @@ export const findLeafNodesFromDomainList = (
   }
 
   return leafNodes;
+};
+
+export const genneratorFormItemList = (itemList: ConfigParametersItem[]) => {
+  return itemList.map((item) => {
+    const { dataType, name, comment, placeholder, description, require, value } = item;
+
+    let defaultItem = <Input />;
+    switch (dataType) {
+      case 'string':
+        if (name === 'password') {
+          defaultItem = <Input.Password placeholder={placeholder} />;
+        } else {
+          defaultItem = <Input placeholder={placeholder} />;
+        }
+
+        break;
+      case 'longText':
+        defaultItem = <TextArea placeholder={placeholder} style={{ height: 100 }} />;
+        break;
+      case 'number':
+        // defaultItem = <InputNumber placeholder={placeholder} style={{ width: '100%' }} />;
+        defaultItem = (
+          <DisabledWheelNumberInput placeholder={placeholder} style={{ width: '100%' }} />
+        );
+        break;
+      case 'bool':
+        return (
+          <FormItem
+            name={name}
+            label={comment}
+            key={name}
+            valuePropName="checked"
+            getValueFromEvent={(value) => {
+              return value === true ? 'true' : 'false';
+            }}
+            getValueProps={(value) => {
+              return {
+                checked: value === 'true',
+              };
+            }}
+          >
+            <Switch />
+          </FormItem>
+        );
+      case 'list': {
+        const { candidateValues = [] } = item;
+        const options = candidateValues.map((value) => {
+          return { label: value, value };
+        });
+        defaultItem = (
+          <Select style={{ width: '100%' }} options={options} placeholder={placeholder} />
+        );
+        break;
+      }
+      default:
+        defaultItem = <Input placeholder={placeholder} />;
+        break;
+    }
+    return (
+      <FormItem
+        name={name}
+        key={name}
+        rules={[{ required: !!require, message: `请输入${comment}` }]}
+        label={<FormItemTitle title={comment} subTitle={description} />}
+      >
+        {defaultItem}
+      </FormItem>
+    );
+  });
+};
+
+export const wrapperTransTypeAndId = (exTransType: TransType, id: number) => {
+  return `${exTransType}-${id}`;
 };

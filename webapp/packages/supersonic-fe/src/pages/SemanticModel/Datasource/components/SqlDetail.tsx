@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button, Table, message, Tooltip, Space, Dropdown } from 'antd';
 import SplitPane from 'react-split-pane';
 import Pane from 'react-split-pane/lib/Pane';
-import { connect } from 'umi';
+import { useModel } from '@umijs/max';
 import sqlFormatter from 'sql-formatter';
 import {
   FullscreenOutlined,
@@ -12,30 +12,34 @@ import {
   SwapOutlined,
   PlayCircleOutlined,
   CloudServerOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 import { isFunction } from 'lodash';
 import FullScreen from '@/components/FullScreen';
 import SqlEditor from '@/components/SqlEditor';
 import type { TaskResultItem, TaskResultColumn } from '../data';
 import { excuteSql } from '@/pages/SemanticModel/service';
-import DataSourceCreateForm from './DataSourceCreateForm';
-import type { Dispatch } from 'umi';
 import type { StateType } from '../../model';
+import SqlParams from './SqlParams';
 import styles from '../style.less';
-
 import 'ace-builds/src-min-noconflict/ext-searchbox';
 import 'ace-builds/src-min-noconflict/theme-sqlserver';
 import 'ace-builds/src-min-noconflict/theme-monokai';
 import 'ace-builds/src-min-noconflict/mode-sql';
 import { IDataSource, ISemantic } from '../../data';
 
+export type DataSourceSubmitData = {
+  sql: string;
+  databaseId: number;
+  columns: any[];
+  sqlParams: any[];
+};
+
 type IProps = {
-  domainManger: StateType;
-  dispatch: Dispatch;
   dataSourceItem: IDataSource.IDataSourceItem;
   onUpdateSql?: (sql: string) => void;
   sql?: string;
-  onSubmitSuccess?: (dataSourceInfo: any) => void;
+  onSubmitSuccess?: (dataSourceInfo: DataSourceSubmitData) => void;
 };
 
 type ResultTableItem = Record<string, any>;
@@ -48,19 +52,20 @@ type ResultColItem = {
 
 type ScreenSize = 'small' | 'middle' | 'large';
 
-type JdbcSourceItems = {
+type DatabaseItem = {
   label: string;
   key: number;
 };
 
 const SqlDetail: React.FC<IProps> = ({
-  domainManger,
   dataSourceItem,
   onSubmitSuccess,
   sql = '',
   onUpdateSql,
 }) => {
-  const { databaseConfigList, selectModelId: modelId } = domainManger;
+  const databaseModel = useModel('SemanticModel.databaseData');
+  const { databaseConfigList } = databaseModel;
+
   const [resultTable, setResultTable] = useState<ResultTableItem[]>([]);
   const [resultTableLoading, setResultTableLoading] = useState(false);
   const [resultCols, setResultCols] = useState<ResultColItem[]>([]);
@@ -69,9 +74,8 @@ const SqlDetail: React.FC<IProps> = ({
     pageSize: 20,
     total: 0,
   });
-  const [jdbcSourceItems, setJdbcSourceItems] = useState<JdbcSourceItems[]>([]);
-  const [currentJdbcSourceItem, setCurrentJdbcSourceItem] = useState<JdbcSourceItems>();
-  const [dataSourceModalVisible, setDataSourceModalVisible] = useState(false);
+  const [dataBaseItems, setDataBaseItems] = useState<DatabaseItem[]>([]);
+  const [currentDatabaseItem, setCurrentDatabaseItem] = useState<DatabaseItem>();
 
   const [tableScroll, setTableScroll] = useState({
     scrollToFirstRowOnChange: true,
@@ -82,7 +86,7 @@ const SqlDetail: React.FC<IProps> = ({
   const [runState, setRunState] = useState<boolean | undefined>();
 
   const [taskLog, setTaskLog] = useState('');
-  const [isSqlExcLocked, setIsSqlExcLocked] = useState(false);
+  const [isSqlExcLocked, setIsSqlExcLocked] = useState<boolean>(false);
   const [screenSize, setScreenSize] = useState<ScreenSize>('middle');
 
   const [isSqlIdeFullScreen, setIsSqlIdeFullScreen] = useState<boolean>(false);
@@ -94,8 +98,11 @@ const SqlDetail: React.FC<IProps> = ({
   const DEFAULT_FULLSCREEN_TOP = 0;
 
   const [partialSql, setPartialSql] = useState('');
-  const [isPartial, setIsPartial] = useState(false);
-  const [isRight, setIsRight] = useState(false);
+  const [isPartial, setIsPartial] = useState<boolean>(false);
+  const [isRight, setIsRight] = useState<boolean>(false);
+
+  const [variableCollapsed, setVariableCollapsed] = useState<boolean>(true);
+  const [sqlParams, setSqlParams] = useState<IDataSource.ISqlParamsItem[]>([]);
 
   const [scriptColumns, setScriptColumns] = useState<any[]>([]);
 
@@ -107,7 +114,7 @@ const SqlDetail: React.FC<IProps> = ({
         disabled: !item.hasUsePermission,
       };
     });
-    setJdbcSourceItems(list);
+    setDataBaseItems(list);
     let targetDataBase = list[0];
     if (dataSourceItem?.id) {
       const { databaseId } = dataSourceItem;
@@ -116,12 +123,16 @@ const SqlDetail: React.FC<IProps> = ({
         targetDataBase = target;
       }
     }
-    setCurrentJdbcSourceItem(targetDataBase);
+    setCurrentDatabaseItem(targetDataBase);
   }, [dataSourceItem, databaseConfigList]);
 
   useEffect(() => {
+    setSqlParams(dataSourceItem?.modelDetail?.sqlVariables || []);
+  }, [dataSourceItem]);
+
+  useEffect(() => {
     setRunState(undefined);
-  }, [currentJdbcSourceItem]);
+  }, [currentDatabaseItem, sql]);
 
   function creatCalcItem(key: string, data: string) {
     const line = document.createElement('div'); // 需要每条数据一行，这样避免数据换行的时候获得的宽度不准确
@@ -131,6 +142,11 @@ const SqlDetail: React.FC<IProps> = ({
     line.appendChild(child);
     return line;
   }
+
+  const handleVariable = () => {
+    const collapsedValue = !variableCollapsed;
+    setVariableCollapsed(collapsedValue);
+  };
 
   // 计算每列的宽度，通过容器插入文档中动态得到该列数据(包括表头)的最长宽度，设为列宽度，保证每列的数据都能一行展示完
   function getKeyWidthMap(list: TaskResultItem[]): TaskResultItem {
@@ -223,18 +239,17 @@ const SqlDetail: React.FC<IProps> = ({
   };
 
   const separateSql = async (value: string) => {
-    if (!currentJdbcSourceItem?.key) {
+    if (!currentDatabaseItem?.key) {
       return;
     }
     setResultTableLoading(true);
     const { code, data, msg } = await excuteSql({
       sql: value,
-      // modelId,
-      id: currentJdbcSourceItem.key,
+      id: currentDatabaseItem.key,
+      sqlVariables: sqlParams,
     });
     setResultTableLoading(false);
     if (code === 200) {
-      // setDataSourceResult(data);
       fetchTaskResult(data);
       setRunState(true);
     } else {
@@ -268,13 +283,13 @@ const SqlDetail: React.FC<IProps> = ({
     return isPartial ? separateSql(partialSql) : separateSql(sql);
   };
 
-  const showDataSetModal = () => {
-    setDataSourceModalVisible(true);
-  };
+  // const showDataSetModal = () => {
+  //   setDataSourceModalVisible(true);
+  // };
 
-  const startCreatDataSource = async () => {
-    showDataSetModal();
-  };
+  // const startCreatDataSource = async () => {
+  //   showDataSetModal();
+  // };
 
   const updateNormalResScroll = () => {
     const node = resultInnerWrap?.current;
@@ -368,7 +383,6 @@ const SqlDetail: React.FC<IProps> = ({
   }, [resultTable, isSqlResFullScreen]);
 
   useEffect(() => {
-    // queryDatabaseConfig();
     const windowHeight = window.innerHeight;
     let size: ScreenSize = 'small';
     if (windowHeight > 1100) {
@@ -386,14 +400,14 @@ const SqlDetail: React.FC<IProps> = ({
           <Tooltip title="数据类型">
             <Dropdown
               menu={{
-                items: jdbcSourceItems,
+                items: dataBaseItems,
                 onClick: (e) => {
                   const value = e.key;
-                  const target: any = jdbcSourceItems.filter((item: any) => {
+                  const target: any = dataBaseItems.filter((item: any) => {
                     return item.key === Number(value);
                   })[0];
                   if (target) {
-                    setCurrentJdbcSourceItem(target);
+                    setCurrentDatabaseItem(target);
                   }
                 },
               }}
@@ -402,7 +416,7 @@ const SqlDetail: React.FC<IProps> = ({
               <Button style={{ marginRight: '15px', minWidth: '140px' }}>
                 <Space>
                   <CloudServerOutlined className={styles.sqlOprIcon} style={{ marginRight: 0 }} />
-                  <span>{currentJdbcSourceItem?.label}</span>
+                  <span>{currentDatabaseItem?.label}</span>
                 </Space>
               </Button>
             </Dropdown>
@@ -412,6 +426,9 @@ const SqlDetail: React.FC<IProps> = ({
           </Tooltip>
           <Tooltip title="格式化SQL语句">
             <EditOutlined className={styles.sqlOprIcon} onClick={formatSQL} />
+          </Tooltip>
+          <Tooltip title="动态变量">
+            <ApiOutlined className={styles.sqlOprIcon} onClick={handleVariable} />
           </Tooltip>
           <Tooltip title="改变主题">
             <SwapOutlined className={styles.sqlOprIcon} onClick={handleThemeChange} />
@@ -459,21 +476,34 @@ const SqlDetail: React.FC<IProps> = ({
                 onSelect={onSelect}
               />
             </div>
+            <div className={variableCollapsed ? styles.hideSqlParams : styles.sqlParams}>
+              <SqlParams
+                value={sqlParams}
+                onChange={(params) => {
+                  setSqlParams(params);
+                }}
+              />
+            </div>
           </div>
         </Pane>
         <div className={`${styles.sqlBottmWrap} ${screenSize}`}>
           <div className={styles.sqlResultWrap}>
             <div className={styles.sqlToolBar}>
-              {
-                <Button
-                  className={styles.sqlToolBtn}
-                  type="primary"
-                  onClick={startCreatDataSource}
-                  disabled={!runState}
-                >
-                  生成数据源
-                </Button>
-              }
+              <Button
+                className={styles.sqlToolBtn}
+                type="primary"
+                onClick={() => {
+                  onSubmitSuccess?.({
+                    columns: scriptColumns,
+                    databaseId: currentDatabaseItem?.key || 0,
+                    sql,
+                    sqlParams,
+                  });
+                }}
+                disabled={!runState}
+              >
+                完成
+              </Button>
               <Button
                 className={styles.sqlToolBtn}
                 type="primary"
@@ -498,27 +528,8 @@ const SqlDetail: React.FC<IProps> = ({
           </div>
         </div>
       </SplitPane>
-
-      {dataSourceModalVisible && (
-        <DataSourceCreateForm
-          sql={sql}
-          databaseItem={currentJdbcSourceItem}
-          dataSourceItem={dataSourceItem}
-          scriptColumns={scriptColumns}
-          onCancel={() => {
-            setDataSourceModalVisible(false);
-          }}
-          onSubmit={(dataSourceInfo: any) => {
-            setDataSourceModalVisible(false);
-            onSubmitSuccess?.(dataSourceInfo);
-          }}
-          createModalVisible={dataSourceModalVisible}
-        />
-      )}
     </>
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(SqlDetail);
+export default SqlDetail;

@@ -1,17 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Form, Input, Modal, Select, Row, Col, Space, Tooltip } from 'antd';
-import { SENSITIVE_LEVEL_OPTIONS } from '../constant';
+import { Button, Form, Input, Modal, Select, Row, Col, Space, Tooltip, Switch } from 'antd';
+import { SENSITIVE_LEVEL_OPTIONS, TAG_DEFINE_TYPE } from '../constant';
+import { StatusEnum } from '../enum';
 import { formLayout } from '@/components/FormHelper/utils';
 import SqlEditor from '@/components/SqlEditor';
 import InfoTagList from './InfoTagList';
 import { ISemantic } from '../data';
 import { InfoCircleOutlined } from '@ant-design/icons';
-import { createDimension, updateDimension, mockDimensionAlias } from '../service';
+import {
+  createDimension,
+  updateDimension,
+  mockDimensionAlias,
+  batchCreateTag,
+  batchDeleteTag,
+} from '../service';
+import FormItemTitle from '@/components/FormHelper/FormItemTitle';
 
 import { message } from 'antd';
 
 export type CreateFormProps = {
   modelId: number;
+  domainId: number;
   dimensionItem?: ISemantic.IDimensionItem;
   onCancel: () => void;
   bindModalVisible: boolean;
@@ -25,6 +34,7 @@ const { Option } = Select;
 const { TextArea } = Input;
 
 const DimensionInfoModal: React.FC<CreateFormProps> = ({
+  domainId,
   modelId,
   onCancel,
   bindModalVisible,
@@ -65,12 +75,42 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
     if (queryParams.id) {
       saveDimensionQuery = updateDimension;
     }
-    const { code, msg } = await saveDimensionQuery(queryParams);
+    const { code, msg, data } = await saveDimensionQuery(queryParams);
     if (code === 200) {
+      if (queryParams.isTag) {
+        queryBatchExportTag(data.id || dimensionItem?.id);
+      }
+      if (dimensionItem?.id && !queryParams.isTag) {
+        queryBatchDeleteTag(dimensionItem);
+      }
       if (!isSilenceSubmit) {
         message.success('编辑维度成功');
         handleUpdate(fieldsValue);
       }
+      return;
+    }
+    message.error(msg);
+  };
+
+  const queryBatchDeleteTag = async (dimensionItem: ISemantic.IDimensionItem) => {
+    const { code, msg } = await batchDeleteTag([
+      {
+        itemIds: [dimensionItem.id],
+        tagDefineType: TAG_DEFINE_TYPE.DIMENSION,
+      },
+    ]);
+    if (code === 200) {
+      return;
+    }
+    message.error(msg);
+  };
+
+  const queryBatchExportTag = async (id: number) => {
+    const { code, msg } = await batchCreateTag([
+      { itemId: id, tagDefineType: TAG_DEFINE_TYPE.DIMENSION },
+    ]);
+
+    if (code === 200) {
       return;
     }
     message.error(msg);
@@ -149,24 +189,10 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
         <FormItem
           hidden={isEdit}
           name="bizName"
-          label="字段名称"
-          rules={[{ required: true, message: '请输入字段名称' }]}
+          label="英文名称"
+          rules={[{ required: true, message: '请输入英文名称' }]}
         >
           <Input placeholder="名称不可重复" disabled={isEdit} />
-        </FormItem>
-        <FormItem
-          hidden={isEdit}
-          name="datasourceId"
-          label="所属数据源"
-          rules={[{ required: true, message: '请选择所属数据源' }]}
-        >
-          <Select placeholder="请选择数据源" disabled={isEdit}>
-            {dataSourceList.map((item) => (
-              <Option key={item.id} value={item.id}>
-                {item.name}
-              </Option>
-            ))}
-          </Select>
         </FormItem>
         <FormItem label="别名">
           <Row>
@@ -228,9 +254,32 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
             ))}
           </Select>
         </FormItem>
-        <FormItem name="defaultValues" label="默认值">
+        {/* <FormItem name="commonDimensionId" label="公共维度">
+          <Select placeholder="请绑定公共维度" allowClear options={commonDimensionOptions} />
+        </FormItem> */}
+        {/* <FormItem name="defaultValues" label="默认值">
           <InfoTagList />
-        </FormItem>
+        </FormItem> */}
+        <Form.Item
+          label={
+            <FormItemTitle
+              title={`设为标签`}
+              subTitle={`如果勾选，代表维度的取值都是一种'标签'，可用作对实体的圈选`}
+            />
+          }
+          name="isTag"
+          valuePropName="checked"
+          getValueFromEvent={(value) => {
+            return value === true ? 1 : 0;
+          }}
+          getValueProps={(value) => {
+            return {
+              checked: value === 1,
+            };
+          }}
+        >
+          <Switch />
+        </Form.Item>
         <FormItem
           name="description"
           label="维度描述"
@@ -241,7 +290,7 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
         <FormItem
           name="expr"
           label="表达式"
-          tooltip="表达式中的字段必须在创建数据源的时候被标记为日期或者维度"
+          tooltip="表达式中的字段必须在创建模型的时候被标记为日期或者维度"
           rules={[{ required: true, message: '请输入表达式' }]}
         >
           <SqlEditor height={'150px'} />

@@ -355,7 +355,7 @@ export const getFormattedValueData = (value: number | string, remainZero?: boole
   return `${formattedValue}${unit === NumericUnit.None ? '' : unit}`;
 };
 
-function getLeafNodes(treeNodes: any[]): any[] {
+export function getLeafNodes(treeNodes: any[]): any[] {
   const leafNodes: any[] = [];
 
   function traverse(node: any) {
@@ -371,7 +371,7 @@ function getLeafNodes(treeNodes: any[]): any[] {
   return leafNodes;
 }
 
-function buildTree(nodes: any[]): any[] {
+export function buildTree(nodes: any[]): any[] {
   const map: Record<number, any> = {};
   const roots: any[] = [];
 
@@ -398,6 +398,16 @@ export function getLeafList(flatNodes: any[]): any[] {
   const treeNodes = buildTree(flatNodes);
   const leafNodes = getLeafNodes(treeNodes);
   return leafNodes;
+}
+
+export function traverseTree(treeData: any[], callback: (node: any) => void) {
+  treeData.forEach((node) => {
+    callback(node);
+    if (node.children?.length > 0) {
+      traverseTree(node.children, callback);
+    }
+  });
+  return treeData;
 }
 
 export function traverseRoutes(routes, env: string, result: any[] = []) {
@@ -434,3 +444,29 @@ export function traverseRoutes(routes, env: string, result: any[] = []) {
 export function isProd() {
   return process.env.NODE_ENV === 'production';
 }
+
+export function isArrayOfValues(array: any) {
+  if (array && Array.isArray(array) && array.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+type ObjToArrayParams = Record<string, string>;
+
+const keyTypeTran = {
+  string: String,
+  number: Number,
+};
+/**
+ * obj转成value，label的数组
+ * @param _obj
+ */
+export const objToArray = (_obj: ObjToArrayParams, keyType: string = 'string') => {
+  return Object.keys(_obj).map((key) => {
+    return {
+      value: keyTypeTran[keyType](key),
+      label: _obj[key],
+    };
+  });
+};

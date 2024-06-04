@@ -4,6 +4,54 @@
 - "Breaking Changes" describes any changes that may break existing functionality or cause
   compatibility issues with previous versions.
 
+## SuperSonic [0.9.2] - 2024-06-01
+
+### Added
+- support multiple rounds of dialogue
+- add term configuration and identification to help LLM learn private domain knowledge
+- support configuring LLM parameters in the agent
+- metric market supports searching in natural language
+
+### Updated
+- introducing WorkFlow, Mapper, Parser, and Corrector support jump execution
+- Introducing the concept of Model-Set to simplify Domain management
+- overall optimization and upgrade of system pages
+- optimize startup script
+
+## SuperSonic [0.9.0] - 2024-04-03
+
+### Added
+- add tag abstraction and enhance tag marketplace management.
+- headless-server provides Chat API interface.
+
+### Updated
+- migrate chat-core core component to headless-core.
+
+## SuperSonic [0.8.6] - 2024-02-23
+
+### Added
+- support view abstraction to Headless.
+- add the Metric API to Headless and optimizing the Headless API.
+- add integration tests to Headless.
+- add TimeCorrector to Chat.
+
+## SuperSonic [0.8.4] - 2024-01-19
+
+### Added
+- support creating derived metrics.
+  - Support creating metrics using three methods: by measure, metric, and field expressions.
+- added support for postgresql data source.
+- code adjustment and abstract optimization for chat and headless.
+
+## SuperSonic [0.8.2] - 2023-12-18
+
+### Added
+- rewrite Python service with Java project, default to Java implementation.
+- support setting the SQL generation method for large models in the interface.
+- optimization of metric market experience.
+- optimization of semantic modeling canvas experience.
+- code structure adjustment and abstraction optimization for chat.
+
 ## SuperSonic [0.7.5] - 2023-10-13
 
 ### Added

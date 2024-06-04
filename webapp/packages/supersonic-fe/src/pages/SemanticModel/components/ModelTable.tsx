@@ -1,15 +1,13 @@
-import type { ActionType, ProColumns } from '@ant-design/pro-table';
-import ProTable from '@ant-design/pro-table';
-import { message, Button, Space, Popconfirm, Input, Tag } from 'antd';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
+import { message, Button, Space, Popconfirm, Input } from 'antd';
 import React, { useRef, useState, useEffect } from 'react';
 import { StatusEnum } from '../enum';
-import type { Dispatch } from 'umi';
-import { connect } from 'umi';
-import type { StateType } from '../model';
-import { deleteModel, updateModel } from '../service';
-
-import ModelCreateFormModal from './ModelCreateFormModal';
-
+import { useModel } from '@umijs/max';
+import { deleteModel, updateModel, batchUpdateModelStatus } from '../service';
+import ClassModelTypeModal from './ClassModelTypeModal';
+import { ColumnsConfig } from './TableColumnRender';
+import TableHeaderFilter from './TableHeaderFilter';
 import moment from 'moment';
 import styles from './style.less';
 import { ISemantic } from '../data';
@@ -18,35 +16,78 @@ type Props = {
   disabledEdit?: boolean;
   modelList: ISemantic.IModelItem[];
   onModelChange?: (model?: ISemantic.IModelItem) => void;
-  dispatch: Dispatch;
-  domainManger: StateType;
 };
 
-const ModelTable: React.FC<Props> = ({
-  modelList,
-  domainManger,
-  disabledEdit = false,
-  onModelChange,
-  dispatch,
-}) => {
-  const { selectModelId: modelId, selectDomainId } = domainManger;
-  const [modelCreateFormModalVisible, setModelCreateFormModalVisible] = useState<boolean>(false);
+const ModelTable: React.FC<Props> = ({ modelList, disabledEdit = false, onModelChange }) => {
+  const domainModel = useModel('SemanticModel.domainData');
+  const modelModel = useModel('SemanticModel.modelData');
+  const { selectDomainId } = domainModel;
+  const { modelTableHistoryParams, setModelTableHistoryParams } = modelModel;
+
   const [modelItem, setModelItem] = useState<ISemantic.IModelItem>();
   const [saveLoading, setSaveLoading] = useState<boolean>(false);
+  const [filterParams, setFilterParams] = useState<Record<string, any>>({});
+  const [createDataSourceModalOpen, setCreateDataSourceModalOpen] = useState(false);
+  const [currentPageNumber, setCurrentPageNumber] = useState<number>(1);
   const actionRef = useRef<ActionType>();
 
-  const updateModelStatus = async (modelData: ISemantic.IModelItem) => {
-    setSaveLoading(true);
-    const { code, msg } = await updateModel({
-      ...modelData,
+  const [tableData, setTableData] = useState<ISemantic.IModelItem[]>([]);
+  const params = modelTableHistoryParams?.[selectDomainId];
+
+  useEffect(() => {
+    if (!Array.isArray(modelList)) {
+      return;
+    }
+    const { key } = filterParams;
+    getTableData(key);
+  }, [modelList, filterParams]);
+
+  useEffect(() => {
+    if (!params) {
+      return;
+    }
+    const { pageNumber, key } = params;
+    setFilterParams((preState) => {
+      return {
+        ...preState,
+        key,
+      };
     });
-    setSaveLoading(false);
-    if (code === 200) {
-      onModelChange?.();
+    setCurrentPageNumber(pageNumber);
+  }, []);
+
+  const dipatchParams = (params: Record<string, any>) => {
+    setModelTableHistoryParams({
+      [selectDomainId]: {
+        ...params,
+      },
+    });
+  };
+
+  const getTableData = (key: string) => {
+    if (key) {
+      setTableData(modelList.filter((item) => item.name.includes(key)));
     } else {
-      message.error(msg);
+      setTableData(modelList);
     }
   };
+
+  const queryBatchUpdateStatus = async (ids: React.Key[], status: StatusEnum) => {
+    if (Array.isArray(ids) && ids.length === 0) {
+      return;
+    }
+    const { code, msg } = await batchUpdateModelStatus({
+      ids,
+      status,
+    });
+    if (code === 200) {
+      onModelChange?.();
+      return;
+    }
+    message.error(msg);
+  };
+
+  const columnsConfig = ColumnsConfig();
 
   const columns: ProColumns[] = [
     {
@@ -57,7 +98,7 @@ const ModelTable: React.FC<Props> = ({
     },
     {
       dataIndex: 'name',
-      title: '指标名称',
+      title: '模型名称',
       search: false,
       render: (_, record) => {
         return (
@@ -73,16 +114,8 @@ const ModelTable: React.FC<Props> = ({
     },
     {
       dataIndex: 'key',
-      title: '指标搜索',
+      title: '模型搜索',
       hideInTable: true,
-      renderFormItem: () => <Input placeholder="请输入ID/指标名称/字段名称/标签" />,
-    },
-    {
-      dataIndex: 'alias',
-      title: '别名',
-      width: 150,
-      ellipsis: true,
-      search: false,
     },
     {
       dataIndex: 'bizName',
@@ -93,20 +126,7 @@ const ModelTable: React.FC<Props> = ({
       dataIndex: 'status',
       title: '状态',
       search: false,
-      render: (status) => {
-        switch (status) {
-          case StatusEnum.ONLINE:
-            return <Tag color="success">已启用</Tag>;
-          case StatusEnum.OFFLINE:
-            return <Tag color="warning">未启用</Tag>;
-          case StatusEnum.INITIALIZED:
-            return <Tag color="processing">初始化</Tag>;
-          case StatusEnum.DELETED:
-            return <Tag color="default">已删除</Tag>;
-          default:
-            return <Tag color="default">未知</Tag>;
-        }
-      },
+      render: columnsConfig.state.render,
     },
     {
       dataIndex: 'createdBy',
@@ -133,6 +153,7 @@ const ModelTable: React.FC<Props> = ({
       title: '操作',
       dataIndex: 'x',
       valueType: 'option',
+      width: 150,
       render: (_, record) => {
         return (
           <Space className={styles.ctrlBtnContainer}>
@@ -140,7 +161,7 @@ const ModelTable: React.FC<Props> = ({
               key="metricEditBtn"
               onClick={() => {
                 setModelItem(record);
-                setModelCreateFormModalVisible(true);
+                setCreateDataSourceModalOpen(true);
               }}
             >
               编辑
@@ -150,10 +171,7 @@ const ModelTable: React.FC<Props> = ({
                 type="link"
                 key="editStatusOfflineBtn"
                 onClick={() => {
-                  updateModelStatus({
-                    ...record,
-                    status: StatusEnum.OFFLINE,
-                  });
+                  queryBatchUpdateStatus([record.id], StatusEnum.OFFLINE);
                 }}
               >
                 停用
@@ -163,10 +181,7 @@ const ModelTable: React.FC<Props> = ({
                 type="link"
                 key="editStatusOnlineBtn"
                 onClick={() => {
-                  updateModelStatus({
-                    ...record,
-                    status: StatusEnum.ONLINE,
-                  });
+                  queryBatchUpdateStatus([record.id], StatusEnum.ONLINE);
                 }}
               >
                 启用
@@ -201,10 +216,50 @@ const ModelTable: React.FC<Props> = ({
         rowKey="id"
         search={false}
         columns={columns}
-        dataSource={modelList}
+        dataSource={tableData}
         tableAlertRender={() => {
           return false;
         }}
+        pagination={{
+          current: currentPageNumber,
+          onChange: (pageNumber) => {
+            setCurrentPageNumber(pageNumber);
+            dipatchParams({
+              ...filterParams,
+              pageNumber: `${pageNumber}`,
+            });
+          },
+        }}
+        headerTitle={
+          <TableHeaderFilter
+            components={[
+              {
+                label: '模型搜索',
+                component: (
+                  <Input.Search
+                    style={{ width: 280 }}
+                    placeholder="请输入模型名称"
+                    defaultValue={params?.key}
+                    onSearch={(value) => {
+                      setCurrentPageNumber(1);
+                      dipatchParams({
+                        ...filterParams,
+                        key: value,
+                        pageNumber: `1`,
+                      });
+                      setFilterParams((preState) => {
+                        return {
+                          ...preState,
+                          key: value,
+                        };
+                      });
+                    }}
+                  />
+                ),
+              },
+            ]}
+          />
+        }
         size="small"
         options={{ reload: false, density: false, fullScreen: false }}
         toolBarRender={() =>
@@ -216,7 +271,7 @@ const ModelTable: React.FC<Props> = ({
                   type="primary"
                   onClick={() => {
                     setModelItem(undefined);
-                    setModelCreateFormModalVisible(true);
+                    setCreateDataSourceModalOpen(true);
                   }}
                 >
                   创建模型
@@ -224,22 +279,20 @@ const ModelTable: React.FC<Props> = ({
               ]
         }
       />
-      {modelCreateFormModalVisible && (
-        <ModelCreateFormModal
-          domainId={selectDomainId}
-          basicInfo={modelItem}
+      {createDataSourceModalOpen && (
+        <ClassModelTypeModal
+          open={createDataSourceModalOpen}
+          modelItem={modelItem}
           onSubmit={() => {
-            setModelCreateFormModalVisible(false);
             onModelChange?.();
+            setCreateDataSourceModalOpen(false);
           }}
           onCancel={() => {
-            setModelCreateFormModalVisible(false);
+            setCreateDataSourceModalOpen(false);
           }}
         />
       )}
     </>
   );
 };
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(ModelTable);
+export default ModelTable;

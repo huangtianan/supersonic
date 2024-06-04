@@ -1,35 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Modal, message, Space, Tooltip } from 'antd';
+import { Button, Modal, message, Space, Tooltip, Tabs } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { ISemantic } from '../data';
 import CommonEditTable from './CommonEditTable';
 import { updateDimension, mockDimensionValuesAlias } from '../service';
-import { connect } from 'umi';
-import type { StateType } from '../model';
+import DimensionValueSettingForm from './Entity/DimensionValueSettingForm';
 
 export type CreateFormProps = {
   dimensionValueSettingList: ISemantic.IDimensionValueSettingItem[];
   onCancel: () => void;
-  dimensionItem?: ISemantic.IDimensionItem;
+  dimensionItem: ISemantic.IDimensionItem;
   open: boolean;
   onSubmit: (values?: any) => void;
-  domainManger: StateType;
 };
 
 type TableDataSource = { techName: string; bizName: string; alias?: string[] };
 
-const DimensionInfoModal: React.FC<CreateFormProps> = ({
+const DimensionValueSettingModal: React.FC<CreateFormProps> = ({
   onCancel,
   open,
   dimensionItem,
   dimensionValueSettingList,
-  domainManger,
   onSubmit,
 }) => {
   const [tableDataSource, setTableDataSource] = useState<TableDataSource[]>([]);
-  const { selectDomainId } = domainManger;
   const [dimValueMaps, setDimValueMaps] = useState<ISemantic.IDimensionValueSettingItem[]>([]);
   const [llmLoading, setLlmLoading] = useState<boolean>(false);
+  const [menuKey, setMenuKey] = useState<string>('default');
 
   useEffect(() => {
     setTableDataSource(dimensionValueSettingList);
@@ -47,7 +44,6 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
     }
     const queryParams = {
       ...dimensionItem,
-      domainId: selectDomainId,
       ...fieldsValue,
     };
     const { code, msg } = await updateDimension(queryParams);
@@ -74,29 +70,33 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
   const renderFooter = () => {
     return (
       <>
-        <Button
-          type="primary"
-          loading={llmLoading}
-          onClick={() => {
-            generatorDimensionValue();
-          }}
-        >
-          <Space>
-            智能填充
-            <Tooltip title="智能填充将根据维度相关信息，使用大语言模型获取可能被使用的维度值">
-              <InfoCircleOutlined />
-            </Tooltip>
-          </Space>
-        </Button>
         <Button onClick={onCancel}>取消</Button>
-        <Button
-          type="primary"
-          onClick={() => {
-            handleSubmit();
-          }}
-        >
-          完成
-        </Button>
+        {menuKey === 'default' && (
+          <>
+            <Button
+              type="primary"
+              loading={llmLoading}
+              onClick={() => {
+                generatorDimensionValue();
+              }}
+            >
+              <Space>
+                智能填充
+                <Tooltip title="智能填充将根据维度相关信息，使用大语言模型获取可能被使用的维度值">
+                  <InfoCircleOutlined />
+                </Tooltip>
+              </Space>
+            </Button>
+            <Button
+              type="primary"
+              onClick={() => {
+                handleSubmit();
+              }}
+            >
+              完成
+            </Button>
+          </>
+        )}
       </>
     );
   };
@@ -154,6 +154,38 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
       },
     },
   ];
+
+  const tabItem = [
+    {
+      label: '维度值填充',
+      key: 'default',
+      children: (
+        <CommonEditTable
+          tableDataSource={tableDataSource}
+          columnList={columns}
+          onDataSourceChange={(tableData) => {
+            const dimValueMaps = tableData.map((item: TableDataSource) => {
+              return {
+                ...item,
+              };
+            });
+
+            setDimValueMaps(dimValueMaps);
+          }}
+        />
+      ),
+    },
+    {
+      label: '维度值设置',
+      key: 'setting',
+      children: <DimensionValueSettingForm dataItem={dimensionItem} />,
+    },
+  ];
+
+  const handleMenuChange = (key: string) => {
+    setMenuKey(key);
+  };
+
   return (
     <Modal
       width={1200}
@@ -165,24 +197,16 @@ const DimensionInfoModal: React.FC<CreateFormProps> = ({
       footer={renderFooter()}
       onCancel={onCancel}
     >
-      <CommonEditTable
-        tableDataSource={tableDataSource}
-        columnList={columns}
-        onDataSourceChange={(tableData) => {
-          const dimValueMaps = tableData.map((item: TableDataSource) => {
-            return {
-              ...item,
-              // alias: item.alias ? `${item.alias}`.split(',') : [],
-            };
-          });
-
-          setDimValueMaps(dimValueMaps);
+      <Tabs
+        items={tabItem}
+        size="large"
+        activeKey={menuKey}
+        onChange={(menuKey: string) => {
+          handleMenuChange(menuKey);
         }}
       />
     </Modal>
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(DimensionInfoModal);
+export default DimensionValueSettingModal;

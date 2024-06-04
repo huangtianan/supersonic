@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Button, message } from 'antd';
 import DimensionMetricRelationTableTransfer from './DimensionMetricRelationTableTransfer';
 import { ISemantic } from '../data';
-import { updateExprMetric } from '../service';
+import { updateMetric } from '../service';
 import FormItemTitle from '@/components/FormHelper/FormItemTitle';
 
 type Props = {
@@ -11,16 +11,24 @@ type Props = {
   metricItem?: ISemantic.IMetricItem;
   relationsInitialValue?: ISemantic.IDrillDownDimensionItem[];
   onSubmit: (relations: ISemantic.IDrillDownDimensionItem[]) => void;
+  onRefreshRelationData?: () => void;
 };
 
 const DimensionAndMetricRelationModal: React.FC<Props> = ({
   open,
-  metricItem = {},
+  metricItem,
   relationsInitialValue,
   onCancel,
   onSubmit,
+  onRefreshRelationData,
 }) => {
   const [relationList, setRelationList] = useState<ISemantic.IDrillDownDimensionItem[]>([]);
+
+  useEffect(() => {
+    if (Array.isArray(relationsInitialValue)) {
+      setRelationList(relationsInitialValue);
+    }
+  }, [relationsInitialValue]);
 
   const saveMetric = async (relationList: any) => {
     const queryParams = {
@@ -30,10 +38,11 @@ const DimensionAndMetricRelationModal: React.FC<Props> = ({
         drillDownDimensions: relationList,
       },
     };
-    const { code, msg } = await updateExprMetric(queryParams);
+
+    const { code, msg } = await updateMetric(queryParams);
     if (code === 200) {
-      // message.success('编辑指标成功');
-      // onSubmit?.(queryParams);
+      onSubmit(relationList);
+      onRefreshRelationData?.();
       return;
     }
     message.error(msg);
@@ -46,8 +55,11 @@ const DimensionAndMetricRelationModal: React.FC<Props> = ({
         <Button
           type="primary"
           onClick={() => {
-            onSubmit(relationList);
-            saveMetric(relationList);
+            if (metricItem?.id) {
+              saveMetric(relationList);
+            } else {
+              onSubmit(relationList);
+            }
           }}
         >
           完成

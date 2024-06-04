@@ -1,13 +1,13 @@
-import { getLeafList } from '@/utils/utils';
+import { getLeafNodes } from '@/utils/utils';
 import { PlusOutlined } from '@ant-design/icons';
 import { Button, Input, message, Popconfirm, Select, Table, Tag } from 'antd';
 import moment from 'moment';
 import { useEffect, useState } from 'react';
-import { PARSE_MODE_MAP, PLUGIN_TYPE_MAP } from './constants';
+import { PLUGIN_TYPE_MAP } from './constants';
 import DetailModal from './DetailModal';
 import { deletePlugin, getModelList, getPluginList } from './service';
 import styles from './style.less';
-import { ModelType, ParseModeEnum, PluginType, PluginTypeEnum } from './type';
+import { ModelType, PluginType, PluginTypeEnum } from './type';
 
 const { Search } = Input;
 
@@ -24,7 +24,7 @@ const PluginManage = () => {
 
   const initModelList = async () => {
     const res = await getModelList();
-    setModelList(getLeafList(res.data));
+    setModelList(getLeafNodes(res.data));
   };
 
   const updateData = async (filters?: any) => {
@@ -57,9 +57,9 @@ const PluginManage = () => {
       key: 'name',
     },
     {
-      title: '主题域',
-      dataIndex: 'modelList',
-      key: 'modelList',
+      title: '数据集',
+      dataIndex: 'dataSetList',
+      key: 'dataSetList',
       width: 200,
       render: (value: number[]) => {
         if (value?.includes(-1)) {
@@ -67,8 +67,8 @@ const PluginManage = () => {
         }
         return value ? (
           <div className={styles.modelColumn}>
-            {value.map((id, index) => {
-              const name = modelList.find((model) => model.id === +id)?.name;
+            {value.map((id) => {
+              const name = modelList.find((model) => model.id === id)?.name;
               return name ? <Tag key={id}>{name}</Tag> : null;
             })}
           </div>

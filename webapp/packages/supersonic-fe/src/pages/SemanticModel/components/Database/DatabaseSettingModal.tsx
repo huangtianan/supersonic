@@ -55,7 +55,7 @@ const DatabaseSettingModal: React.FC<CreateFormProps> = ({
 
   return (
     <Modal
-      width={1200}
+      width={600}
       destroyOnClose
       title="数据库连接设置"
       style={{ top: 48 }}
@@ -67,7 +67,7 @@ const DatabaseSettingModal: React.FC<CreateFormProps> = ({
       <DatabaseCreateForm
         hideSubmitBtn={true}
         ref={createFormRef}
-        dataBaseConfig={databaseItem}
+        databaseId={databaseItem?.id}
         onSubmit={() => {
           onSubmit?.();
         }}

@@ -5,21 +5,21 @@ import { useEffect, useState } from 'react';
 import { querySimilarQuestions } from '../../service';
 
 type Props = {
-  // similarQuestions: SimilarQuestionType[];
-  queryText: string;
-  agentId?: number;
+  queryId?: number;
+  similarQueries?: SimilarQuestionType[];
   defaultExpanded?: boolean;
   onSelectQuestion: (question: SimilarQuestionType) => void;
 };
 
 const SimilarQuestions: React.FC<Props> = ({
-  // similarQuestions,
-  queryText,
-  agentId,
+  queryId,
+  similarQueries,
   defaultExpanded,
   onSelectQuestion,
 }) => {
-  const [similarQuestions, setSimilarQuestions] = useState<SimilarQuestionType[]>([]);
+  const [similarQuestions, setSimilarQuestions] = useState<SimilarQuestionType[]>(
+    similarQueries || []
+  );
   const [expanded, setExpanded] = useState(defaultExpanded || false);
   const [loading, setLoading] = useState(false);
 
@@ -28,16 +28,16 @@ const SimilarQuestions: React.FC<Props> = ({
 
   const initData = async () => {
     setLoading(true);
-    const res = await querySimilarQuestions(queryText, agentId);
+    const res = await querySimilarQuestions(queryId!);
     setLoading(false);
-    setSimilarQuestions(res.data || []);
+    setSimilarQuestions(res.data?.similarQueries || []);
   };
 
   useEffect(() => {
-    if (expanded && similarQuestions?.length === 0) {
+    if (expanded && similarQuestions?.length === 0 && queryId) {
       initData();
     }
-  }, [expanded]);
+  }, [expanded, queryId]);
 
   const onToggleExpanded = () => {
     setExpanded(!expanded);

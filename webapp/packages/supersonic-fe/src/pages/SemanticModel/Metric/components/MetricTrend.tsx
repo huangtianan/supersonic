@@ -189,9 +189,9 @@ const TrendChart: React.FC<Props> = ({
               (item: any) =>
                 `<div style="margin-top: 3px;">${
                   item.marker
-                } <span style="display: inline-block; width: 70px; margin-right: 5px;">${
+                } <span style="display: inline-block; width: 100px; margin-right: 5px;">${
                   item.seriesName
-                }</span><span style="display: inline-block; width: 90px; text-align: right; font-weight: 500;">${
+                }</span><span style="display: inline-block; width: 120px; text-align: right; font-weight: 500;">${
                   item.value === ''
                     ? '-'
                     : isPer
@@ -251,7 +251,7 @@ const TrendChart: React.FC<Props> = ({
       <Skeleton
         className={styles.chart}
         style={{ height, display: loading ? 'table' : 'none' }}
-        paragraph={{ rows: height && height > 300 ? 15 : 6 }}
+        paragraph={{ rows: height && height > 300 ? 10 : 6 }}
       />
       <div
         className={styles.chart}

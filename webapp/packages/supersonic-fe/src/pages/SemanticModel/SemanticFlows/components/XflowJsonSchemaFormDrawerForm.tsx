@@ -3,26 +3,22 @@ import { Drawer } from 'antd';
 import { WorkspacePanel, useXFlowApp, useModelAsync, XFlowGraphCommands } from '@antv/xflow';
 import { useJsonSchemaFormModel } from '@antv/xflow-extension/es/canvas-json-schema-form/service';
 import { NS_DATA_SOURCE_RELATION_MODAL_OPEN_STATE } from '../ConfigModelService';
-import { connect } from 'umi';
 import { DATASOURCE_NODE_RENDER_ID } from '../constant';
 import DataSourceRelationFormDrawer from './DataSourceRelationFormDrawer';
-import DataSourceCreateForm from '../../Datasource/components/DataSourceCreateForm';
-import ClassDataSourceTypeModal from '../../components/ClassDataSourceTypeModal1';
+import ModelCreateForm from '../../Datasource/components/ModelCreateForm';
 import { GraphApi } from '../service';
 import { SemanticNodeType } from '../../enum';
-import type { StateType } from '../../model';
 import DataSource from '../../Datasource';
 
 export type CreateFormProps = {
   controlMapService: any;
   formSchemaService: any;
   formValueUpdateService: any;
-  domainManger: StateType;
+  selectDomainId:number
 };
 
 const XflowJsonSchemaFormDrawerForm: React.FC<CreateFormProps> = (props) => {
-  const { domainManger } = props;
-  const { selectDomainId } = domainManger;
+
   const [visible, setVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
   const [dataSourceItem, setDataSourceItem] = useState<any>();
@@ -61,7 +57,7 @@ const XflowJsonSchemaFormDrawerForm: React.FC<CreateFormProps> = (props) => {
         if (!payload) {
           setCreateDataSourceModalOpen(true);
         } else {
-          if (payload?.datasourceDetail?.queryType === 'table_query') {
+          if (payload?.modelDetail?.queryType === 'table_query') {
             setDataSourceModalVisible(true);
           } else {
             setCreateModalVisible(true);
@@ -91,7 +87,7 @@ const XflowJsonSchemaFormDrawerForm: React.FC<CreateFormProps> = (props) => {
   return (
     <WorkspacePanel position={{}}>
       <DataSourceRelationFormDrawer
-        domainId={domainManger.selectDomainId}
+        domainId={props.selectDomainId}
         nodeDataSource={nodeDataSource}
         onClose={() => {
           handleDataSourceRelationDrawerClose();
@@ -99,7 +95,7 @@ const XflowJsonSchemaFormDrawerForm: React.FC<CreateFormProps> = (props) => {
         open={visible}
       />
       {dataSourceModalVisible && (
-        <DataSourceCreateForm
+        <ModelCreateForm
           basicInfoFormMode="fast"
           dataSourceItem={dataSourceItem}
           onCancel={() => {
@@ -136,7 +132,6 @@ const XflowJsonSchemaFormDrawerForm: React.FC<CreateFormProps> = (props) => {
       >
         <DataSource
           initialValues={dataSourceItem}
-          domainId={Number(domainManger?.selectDomainId)}
           onSubmitSuccess={(dataSourceInfo: any) => {
             setCreateModalVisible(false);
             const { targetCell, targetData } = state;
@@ -153,8 +148,8 @@ const XflowJsonSchemaFormDrawerForm: React.FC<CreateFormProps> = (props) => {
           }}
         />
       </Drawer>
-      {
-        <ClassDataSourceTypeModal
+      {/* {
+        <ClassModelTypeModal
           open={createDataSourceModalOpen}
           onCancel={() => {
             resetSelectedNode();
@@ -169,11 +164,9 @@ const XflowJsonSchemaFormDrawerForm: React.FC<CreateFormProps> = (props) => {
             setCreateDataSourceModalOpen(false);
           }}
         />
-      }
+      } */}
     </WorkspacePanel>
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(XflowJsonSchemaFormDrawerForm);
+export default XflowJsonSchemaFormDrawerForm

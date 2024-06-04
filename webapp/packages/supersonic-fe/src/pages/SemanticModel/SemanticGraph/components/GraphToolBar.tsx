@@ -2,11 +2,7 @@ import { Button, Space } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import React from 'react';
 
-import { connect } from 'umi';
-import type { StateType } from '../../model';
-
 type Props = {
-  domainManger: StateType;
   onClick: (params?: { eventName?: string }) => void;
   [key: string]: any;
 };
@@ -34,9 +30,9 @@ const GraphToolBar: React.FC<Props> = ({ onClick }) => {
             onClick?.({ eventName: 'createDatabase' });
           }}
         >
-          新建数据源
+          新建模型
         </Button>
-        <Button
+        {/* <Button
           key="createDimensionBtn"
           icon={<PlusOutlined />}
           size="small"
@@ -55,12 +51,10 @@ const GraphToolBar: React.FC<Props> = ({ onClick }) => {
           }}
         >
           新建指标
-        </Button>
+        </Button> */}
       </Space>
     </div>
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(GraphToolBar);
+export default GraphToolBar

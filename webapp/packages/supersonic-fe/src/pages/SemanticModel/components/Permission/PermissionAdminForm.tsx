@@ -2,33 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Form, Input, Switch, message } from 'antd';
 import SelectPartner from '@/components/SelectPartner';
 import SelectTMEPerson from '@/components/SelectTMEPerson';
-import { connect } from 'umi';
-import type { Dispatch } from 'umi';
-import type { StateType } from '../../model';
+import { useModel } from '@umijs/max';
 import FormItemTitle from '@/components/FormHelper/FormItemTitle';
 import { updateDomain, updateModel, getDomainDetail, getModelDetail } from '../../service';
 
 import styles from '../style.less';
 type Props = {
   permissionTarget: 'model' | 'domain';
-  dispatch: Dispatch;
-  domainManger: StateType;
   onSubmit?: (data?: any) => void;
   onValuesChange?: (value, values) => void;
 };
 
 const FormItem = Form.Item;
 
-const PermissionAdminForm: React.FC<Props> = ({
-  permissionTarget,
-  domainManger,
-  onValuesChange,
-}) => {
+const PermissionAdminForm: React.FC<Props> = ({ permissionTarget, onValuesChange }) => {
   const [form] = Form.useForm();
   const [isOpenState, setIsOpenState] = useState<boolean>(true);
   const [classDetail, setClassDetail] = useState<any>({});
-  const { selectModelId: modelId, selectDomainId } = domainManger;
-  const { APP_TARGET } = process.env;
+  const domainModel = useModel('SemanticModel.domainData');
+  const modelModel = useModel('SemanticModel.modelData');
+  const { selectDomainId } = domainModel;
+  const { selectModelId: modelId } = modelModel;
 
   const queryClassDetail = async () => {
     const selectId = permissionTarget === 'model' ? modelId : selectDomainId;
@@ -54,7 +48,7 @@ const PermissionAdminForm: React.FC<Props> = ({
 
   useEffect(() => {
     queryClassDetail();
-  }, [modelId]);
+  }, [modelId, selectDomainId]);
 
   const saveAuth = async () => {
     const values = await form.validateFields();
@@ -102,16 +96,15 @@ const PermissionAdminForm: React.FC<Props> = ({
         >
           <SelectTMEPerson placeholder="请邀请团队成员" />
         </FormItem>
-        {APP_TARGET === 'inner' && (
-          <FormItem name="adminOrgs" label="按组织">
-            <SelectPartner
-              type="selectedDepartment"
-              treeSelectProps={{
-                placeholder: '请选择需要授权的部门',
-              }}
-            />
-          </FormItem>
-        )}
+        {/* {APP_TARGET === 'inner'} */}
+        <FormItem name="adminOrgs" label="按组织">
+          <SelectPartner
+            type="selectedDepartment"
+            treeSelectProps={{
+              placeholder: '请选择需要授权的部门',
+            }}
+          />
+        </FormItem>
         <Form.Item
           label={
             <FormItemTitle
@@ -128,16 +121,15 @@ const PermissionAdminForm: React.FC<Props> = ({
         </Form.Item>
         {!isOpenState && (
           <>
-            {APP_TARGET === 'inner' && (
-              <FormItem name="viewOrgs" label="按组织">
-                <SelectPartner
-                  type="selectedDepartment"
-                  treeSelectProps={{
-                    placeholder: '请选择需要授权的部门',
-                  }}
-                />
-              </FormItem>
-            )}
+            {/* {APP_TARGET === 'inner' && } */}
+            <FormItem name="viewOrgs" label="按组织">
+              <SelectPartner
+                type="selectedDepartment"
+                treeSelectProps={{
+                  placeholder: '请选择需要授权的部门',
+                }}
+              />
+            </FormItem>
             <FormItem name="viewers" label="按个人">
               <SelectTMEPerson placeholder="请选择需要授权的个人" />
             </FormItem>
@@ -148,6 +140,4 @@ const PermissionAdminForm: React.FC<Props> = ({
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(PermissionAdminForm);
+export default PermissionAdminForm;

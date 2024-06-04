@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS `s2_chat`
     ) ;
 
 
-CREATE TABLE `s2_chat_query`
+CREATE TABLE IF NOT EXISTS `s2_chat_query`
 (
     `question_id`             BIGINT  NOT NULL AUTO_INCREMENT,
     `agent_id`             INT  NULL,
@@ -37,10 +37,12 @@ CREATE TABLE `s2_chat_query`
     `query_result` mediumtext NOT NULL ,
     `score`             int DEFAULT '0',
     `feedback`          varchar(1024) DEFAULT '',
+    `similar_queries`          varchar(1024) DEFAULT '',
+    `parse_time_cost` varchar(1024) DEFAULT '',
     PRIMARY KEY (`question_id`)
 );
 
-CREATE TABLE `s2_chat_parse`
+CREATE TABLE IF NOT EXISTS `s2_chat_parse`
 (
     `question_id`             BIGINT  NOT NULL,
     `chat_id`           BIGINT NOT NULL ,
@@ -52,7 +54,7 @@ CREATE TABLE `s2_chat_parse`
     `is_candidate` INT DEFAULT 1 COMMENT '1是candidate,0是selected'
 );
 
-CREATE TABLE `s2_chat_statistics`
+CREATE TABLE IF NOT EXISTS `s2_chat_statistics`
 (
     `question_id`             BIGINT  NOT NULL,
     `chat_id`           BIGINT NOT NULL ,
@@ -75,12 +77,13 @@ CREATE TABLE IF NOT EXISTS `s2_chat_config` (
     `created_by` varchar(100) NOT NULL   ,
     `updated_by` varchar(100) NOT NULL   ,
     `status` INT NOT NULL  DEFAULT '0' , -- domain extension information status : 0 is normal, 1 is off the shelf, 2 is deleted
+    `llm_examples` TEXT,
     PRIMARY KEY (`id`)
     ) ;
 COMMENT ON TABLE s2_chat_config IS 'chat config information table ';
 
 
-create table s2_user
+create table IF NOT EXISTS s2_user
 (
     id       INT AUTO_INCREMENT,
     name     varchar(100) not null,
@@ -118,6 +121,7 @@ CREATE TABLE IF NOT EXISTS `s2_model` (
     `name` varchar(255) DEFAULT NULL  , -- domain name
     `biz_name` varchar(255) DEFAULT NULL  , -- internal name
     `domain_id` INT DEFAULT '0'  , -- parent domain ID
+    `tag_object_id` INT DEFAULT '0'  ,
     `alias` varchar(255) DEFAULT NULL  , -- internal name
     `status` INT DEFAULT NULL,
     `description` varchar(500) DEFAULT  NULL ,
@@ -132,12 +136,18 @@ CREATE TABLE IF NOT EXISTS `s2_model` (
     `view_org` varchar(3000) DEFAULT NULL  , -- domain available organization
     `entity` varchar(500) DEFAULT NULL  , -- domain entity info
     `drill_down_dimensions` varchar(500) DEFAULT NULL  , -- drill down dimensions info
+    `database_id` INT NOT  NULL ,
+    `model_detail` LONGVARCHAR NOT  NULL ,
+    `depends` varchar(500) DEFAULT NULL ,
+    `source_type` varchar(128) DEFAULT NULL ,
+    `filter_sql` varchar(1000) DEFAULT NULL ,
+    `ext` varchar(1000) DEFAULT NULL,
     PRIMARY KEY (`id`)
     );
 COMMENT ON TABLE s2_model IS 'model information';
 
 
-CREATE TABLE `s2_database` (
+CREATE TABLE IF NOT EXISTS `s2_database` (
                                `id` INT NOT NULL AUTO_INCREMENT,
                                `name` varchar(255) NOT  NULL ,
                                `description` varchar(500) DEFAULT  NULL ,
@@ -154,25 +164,7 @@ CREATE TABLE `s2_database` (
 );
 COMMENT ON TABLE s2_database IS 'database instance table';
 
-CREATE TABLE  IF NOT EXISTS  `s2_datasource` (
-                                                 `id` INT NOT NULL AUTO_INCREMENT,
-                                                 `model_id` INT NOT  NULL ,
-                                                 `name` varchar(255) NOT  NULL ,
-    `biz_name` varchar(255) NOT  NULL ,
-    `description` varchar(500) DEFAULT  NULL ,
-    `database_id` INT NOT  NULL ,
-    `datasource_detail` LONGVARCHAR NOT  NULL ,
-    `status` int(11) DEFAULT NULL ,
-    `depends` varchar(500) DEFAULT NULL ,
-    `created_at` TIMESTAMP NOT  NULL ,
-    `created_by` varchar(100) NOT  NULL ,
-    `updated_at` TIMESTAMP NOT  NULL ,
-    `updated_by` varchar(100) NOT  NULL,
-    PRIMARY KEY (`id`)
-    );
-COMMENT ON TABLE s2_datasource IS 'datasource table';
-
-create table s2_auth_groups
+create table IF NOT EXISTS s2_auth_groups
 (
     group_id INT,
     config varchar(2048),
@@ -180,14 +172,14 @@ create table s2_auth_groups
 );
 
 CREATE TABLE IF NOT EXISTS `s2_metric` (
-                                           `id` INT NOT NULL  AUTO_INCREMENT,
-                                           `model_id` INT  NOT NULL ,
-                                           `name` varchar(255)  NOT NULL ,
+    `id` INT NOT NULL  AUTO_INCREMENT,
+    `model_id` INT  NOT NULL ,
+    `name` varchar(255)  NOT NULL ,
     `biz_name` varchar(255)  NOT NULL ,
     `description` varchar(500) DEFAULT NULL ,
-    `status` INT  NOT NULL , -- status, 0 is off the shelf, 1 is normal
+    `status` INT  NOT NULL ,
     `sensitive_level` INT NOT NULL ,
-    `type` varchar(50)  NOT NULL , -- type proxy,expr
+    `type` varchar(50)  NOT NULL , -- ATOMIC, DERIVED
     `type_params` LONGVARCHAR DEFAULT NULL  ,
     `created_at` TIMESTAMP NOT NULL ,
     `created_by` varchar(100) NOT NULL ,
@@ -196,8 +188,11 @@ CREATE TABLE IF NOT EXISTS `s2_metric` (
     `data_format_type` varchar(50) DEFAULT NULL ,
     `data_format` varchar(500) DEFAULT NULL,
     `alias` varchar(500) DEFAULT NULL,
-    `tags` varchar(500) DEFAULT NULL,
+    `classifications` varchar(500) DEFAULT NULL,
     `relate_dimensions` varchar(500) DEFAULT NULL,
+    `ext` LONGVARCHAR DEFAULT NULL  ,
+    `define_type` varchar(50)  NOT NULL, -- MEASURE, FIELD, METRIC
+    `is_publish` INT,
     PRIMARY KEY (`id`)
     );
 COMMENT ON TABLE s2_metric IS 'metric information table';
@@ -206,7 +201,6 @@ COMMENT ON TABLE s2_metric IS 'metric information table';
 CREATE TABLE IF NOT EXISTS `s2_dimension` (
                                               `id` INT NOT NULL  AUTO_INCREMENT ,
                                               `model_id` INT NOT NULL ,
-                                              `datasource_id` INT  NOT NULL ,
                                               `name` varchar(255) NOT NULL ,
     `biz_name` varchar(255)  NOT NULL ,
     `description` varchar(500) NOT NULL ,
@@ -224,43 +218,42 @@ CREATE TABLE IF NOT EXISTS `s2_dimension` (
     `alias` varchar(500) DEFAULT NULL,
     `default_values` varchar(500) DEFAULT NULL,
     `dim_value_maps` varchar(500) DEFAULT NULL,
+    `is_tag` INT DEFAULT NULL,
+    `ext` varchar(1000) DEFAULT NULL,
     PRIMARY KEY (`id`)
     );
 COMMENT ON TABLE s2_dimension IS 'dimension information table';
 
-create table s2_datasource_rela
+CREATE TABLE IF NOT EXISTS s2_model_rela
 (
-    id              INT AUTO_INCREMENT,
-    model_id       INT       null,
-    datasource_from INT       null,
-    datasource_to   INT       null,
-    join_key        varchar(100) null,
-    created_at      TIMESTAMP     null,
-    created_by      varchar(100) null,
-    updated_at      TIMESTAMP     null,
-    updated_by      varchar(100) null,
+    id             BIGINT AUTO_INCREMENT,
+    domain_id       BIGINT,
+    from_model_id    BIGINT,
+    to_model_id      BIGINT,
+    join_type       VARCHAR(255),
+    join_condition  VARCHAR(255),
     PRIMARY KEY (`id`)
 );
-COMMENT ON TABLE s2_datasource_rela IS 'data source association table';
 
-create table s2_view_info
-(
+create table IF NOT EXISTS `s2_canvas` (
     id         INT auto_increment,
-    model_id  INT       null,
-    type       varchar(20)  null comment 'datasource、dimension、metric',
+    domain_id  INT       null,
+    type       varchar(20)  null comment 'model、dimension、metric',
     config     LONGVARCHAR   null comment 'config detail',
     created_at TIMESTAMP     null,
     created_by varchar(100) null,
     updated_at TIMESTAMP     null,
-    updated_by varchar(100) not null
+    updated_by varchar(100) not null,
+    PRIMARY KEY (`id`)
 );
-COMMENT ON TABLE s2_view_info IS 'view information table';
+COMMENT ON TABLE s2_canvas IS 'canvas table';
 
 
-CREATE TABLE `s2_query_stat_info` (
+CREATE TABLE IF NOT EXISTS `s2_query_stat_info` (
                                       `id` INT NOT NULL AUTO_INCREMENT,
                                       `trace_id` varchar(200) DEFAULT NULL, -- query unique identifier
                                       `model_id` INT DEFAULT NULL,
+                                      `data_set_id` INT DEFAULT NULL,
                                       `user`    varchar(200) DEFAULT NULL,
                                       `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
                                       `query_type` varchar(200) DEFAULT NULL, -- the corresponding scene
@@ -338,7 +331,7 @@ CREATE TABLE IF NOT EXISTS `s2_plugin`
 (
     `id`         INT AUTO_INCREMENT,
     `type`      varchar(50)   NULL,
-    `model`     varchar(100)  NULL,
+    `data_set`     varchar(100)  NULL,
     `pattern`    varchar(500)  NULL,
     `parse_mode` varchar(100)  NULL,
     `parse_mode_config` LONGVARCHAR  NULL,
@@ -360,6 +353,8 @@ CREATE TABLE IF NOT EXISTS s2_agent
     status       int null,
     examples    varchar(500) null,
     config      varchar(2000)  null,
+    llm_config varchar(2000)  null,
+    multi_turn_config varchar(2000)  null,
     created_by  varchar(100) null,
     created_at  TIMESTAMP  null,
     updated_by  varchar(100) null,
@@ -372,7 +367,8 @@ CREATE TABLE IF NOT EXISTS s2_agent
 -------demo for semantic and chat
 CREATE TABLE IF NOT EXISTS `s2_user_department` (
     `user_name` varchar(200) NOT NULL,
-    `department` varchar(200) NOT NULL -- department of user
+    `department` varchar(200) NOT NULL, -- department of user
+     PRIMARY KEY (`user_name`,`department`)
     );
 COMMENT ON TABLE s2_user_department IS 'user_department_info';
 
@@ -399,23 +395,35 @@ CREATE TABLE IF NOT EXISTS `singer` (
     `genre` varchar(200) NOT NULL,
     `js_play_cnt` bigINT DEFAULT NULL,
     `down_cnt` bigINT DEFAULT NULL,
-    `favor_cnt` bigINT DEFAULT NULL
+    `favor_cnt` bigINT DEFAULT NULL,
+     PRIMARY KEY (`imp_date`, `singer_name`)
     );
 COMMENT ON TABLE singer IS 'singer_info';
+
+CREATE TABLE IF NOT EXISTS `s2_dictionary_conf` (
+   `id` INT NOT NULL AUTO_INCREMENT,
+   `description` varchar(255) ,
+   `type` varchar(255)  NOT NULL ,
+   `item_id` INT  NOT NULL , -- task Request Parameters md5
+   `config` LONGVARCHAR  , -- remark related information
+   `status` varchar(255) NOT NULL , -- the final status of the task
+   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP  ,
+   `created_by` varchar(100) NOT NULL ,
+   PRIMARY KEY (`id`)
+);
+COMMENT ON TABLE s2_dictionary_conf IS 'dictionary conf information table';
 
 CREATE TABLE IF NOT EXISTS `s2_dictionary_task` (
    `id` INT NOT NULL AUTO_INCREMENT,
    `name` varchar(255) NOT NULL , -- task name
    `description` varchar(255) ,
-   `command`LONGVARCHAR  NOT NULL , -- task Request Parameters
-   `command_md5` varchar(255)  NOT NULL , -- task Request Parameters md5
-   `status` INT NOT NULL , -- the final status of the task
-   `dimension_ids` varchar(500)  NULL ,
+   `type` varchar(255)  NOT NULL ,
+   `item_id` INT  NOT NULL , -- task Request Parameters md5
+   `config` LONGVARCHAR  , -- remark related information
+   `status` varchar(255) NOT NULL , -- the final status of the task
    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP  ,
    `created_by` varchar(100) NOT NULL ,
-   `progress` DOUBLE default 0.00  ,  -- task real-time progress
    `elapsed_ms` bigINT DEFAULT NULL , -- the task takes time in milliseconds
-   `message` LONGVARCHAR  , -- remark related information
    PRIMARY KEY (`id`)
 );
 COMMENT ON TABLE s2_dictionary_task IS 'dictionary task information table';
@@ -433,9 +441,10 @@ COMMENT ON TABLE genre IS 'genre';
 
 CREATE TABLE IF NOT EXISTS `artist` (
     `artist_name` varchar(50) NOT NULL , -- genre name
-    `country` varchar(20) ,
+    `citizenship` varchar(20) ,
     `gender` varchar(20) ,
-    `g_name` varchar(50)
+    `g_name` varchar(50),
+    PRIMARY KEY (`artist_name`,`citizenship`)
     );
 COMMENT ON TABLE artist IS 'artist';
 
@@ -459,71 +468,179 @@ CREATE TABLE IF NOT EXISTS `song` (
     `rating` INT ,
     `languages` varchar(20) ,
     `releasedate` varchar(50) ,
-    `resolution` bigINT NOT NULL
+    `resolution` bigINT NOT NULL,
+     PRIMARY KEY (`imp_date`,`song_name`)
     );
 COMMENT ON TABLE song IS 'song';
 
--- benchmark
+CREATE TABLE IF NOT EXISTS `company` (
+    `imp_date` varchar(50) ,
+    `company_id` varchar(50) NOT NULL ,
+    `company_name` varchar(50) NOT NULL ,
+    `headquarter_address` varchar(50) NOT NULL ,
+    `company_established_time` varchar(20) NOT NULL ,
+    `founder` varchar(20) NOT NULL ,
+    `ceo` varchar(20) NOT NULL ,
+    `annual_turnover` bigint(15)  ,
+    `employee_count` int(7) ,
+    PRIMARY KEY (`company_id`)
+    );
 
-create table s2_materialization
-(
-    id                         int AUTO_INCREMENT ,
-    name                       varchar(255)  not null,
-    materialized_type          varchar(255) not null ,
-    update_cycle               varchar(255) ,
-    model_id                   bigint ,
-    database_id                bigint       not null ,
-    level                      int  not null default 0 ,
-    status                     int  not null default 1 ,
-    destination_table          varchar(255) not null ,
-    date_info                  varchar(255) null ,
-    entities                   varchar(255) null ,
-    principals                 varchar(255) DEFAULT NULL ,
-    created_at                 TIMESTAMP null,
-    created_by                 varchar(100) null,
-    updated_at                 TIMESTAMP null,
-    updated_by                 varchar(100) not null,
-    description                varchar(255) null,
-    primary key (id)
-) ;
+CREATE TABLE IF NOT EXISTS `brand` (
+    `imp_date` varchar(50) ,
+    `brand_id` varchar(50) NOT NULL ,
+    `brand_name` varchar(50) NOT NULL ,
+    `brand_established_time` varchar(20) NOT NULL ,
+    `company_id` varchar(50) NOT NULL ,
+    `legal_representative` varchar(20) NOT NULL ,
+    `registered_capital` bigint(15)  ,
+    PRIMARY KEY (`brand_id`)
+    );
 
-create table s2_materialization_element
-(
-    id                       bigint not null ,
-    type                     varchar(255)  not null ,
-    materialization_id       bigint  not null ,
-    depends                  varchar(255)   DEFAULT NULL,
-    element_type             varchar(255) DEFAULT NULL ,
-    default_value            varchar(255) DEFAULT NULL ,
-    outlier                  varchar(255) DEFAULT NULL ,
-    frequency                varchar(255) DEFAULT NULL ,
-    created_at               TIMESTAMP null,
-    created_by               varchar(100) null,
-    updated_at               TIMESTAMP null,
-    updated_by               varchar(100) not null,
-    description              varchar(255) null ,
-    status                   int  not null default 1 ,
-    PRIMARY KEY (id, type, materialization_id)
-) ;
+CREATE TABLE IF NOT EXISTS `company_revenue` (
+    `imp_date` varchar(50) ,
+    `company_id` varchar(50) NOT NULL ,
+    `brand_id` varchar(50) NOT NULL ,
+    `revenue_proportion` double NOT NULL,
+    `profit_proportion` double NOT NULL ,
+    `expenditure_proportion` double NOT NULL
+    );
 
-CREATE TABLE s2_materialization_record
+CREATE TABLE IF NOT EXISTS `company_brand_revenue` (
+    `imp_date` varchar(50) ,
+    `year_time` varchar(10) NOT NULL ,
+    `brand_id` varchar(50) NOT NULL ,
+    `revenue` bigint(15) NOT NULL,
+    `profit` bigint(15) NOT NULL ,
+    `revenue_growth_year_on_year` double NOT NULL ,
+    `profit_growth_year_on_year` double NOT NULL
+    );
+
+
+
+CREATE TABLE IF NOT EXISTS s2_system_config
 (
-    `id`                      bigint NOT NULL AUTO_INCREMENT ,
-    `materialization_id`      bigint  NOT null ,
-    `element_type`            varchar(255)  not null ,
-    `element_id`              bigint DEFAULT NULL ,
-    `element_name`            varchar(255)  not null ,
-    `data_time`               varchar(64) DEFAULT NULL ,
-    `state`                   varchar(255) DEFAULT NULL ,
-    `task_id`                 varchar(255) DEFAULT NULL,
-    `created_at`              TIMESTAMP null,
-    `updated_at`              TIMESTAMP null,
-    `created_by`              varchar(100) null,
-    `updated_by`              varchar(100) not null,
-    `retry_count`             bigint NOT NULL default 0,
-    `source_count`            bigint NOT NULL default 0,
-    `sink_count`              bigint NOT NULL default 0,
-    `message`                 varchar(255) ,
+    id  INT PRIMARY KEY AUTO_INCREMENT,
+    admin varchar(500),
+    parameters text null
+);
+
+CREATE TABLE IF NOT EXISTS `s2_collect` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `type` varchar(20) NOT NULL,
+    `username` varchar(20) NOT NULL,
+    `collect_id` bigint NOT NULL,
+    `create_time` TIMESTAMP,
+    `update_time` TIMESTAMP,
     PRIMARY KEY (`id`)
 );
 
+CREATE TABLE IF NOT EXISTS `s2_metric_query_default_config` (
+       `id` bigint NOT NULL AUTO_INCREMENT,
+       `metric_id` bigint ,
+       `user_name` varchar(255) NOT NULL,
+       `default_config` varchar(1000) NOT NULL,
+       `created_at` TIMESTAMP null,
+       `updated_at` TIMESTAMP null,
+       `created_by` varchar(100) null,
+       `updated_by` varchar(100) not null,
+       PRIMARY KEY (`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `s2_app` (
+    id          bigint AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(255),
+    description VARCHAR(255),
+    status      INT,
+    config      TEXT,
+    end_date    TIMESTAMP,
+    qps         INT,
+    app_secret  VARCHAR(255),
+    owner       VARCHAR(255),
+    created_at  TIMESTAMP,
+    created_by  VARCHAR(255),
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS `s2_data_set` (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    domain_id   BIGINT,
+    `name`      VARCHAR(255),
+    biz_name    VARCHAR(255),
+    description VARCHAR(255),
+    status      INT,
+    alias       VARCHAR(255),
+    data_set_detail TEXT,
+    created_at  TIMESTAMP,
+    created_by  VARCHAR(255),
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(255),
+    query_config VARCHAR(3000),
+    `admin` varchar(3000) DEFAULT NULL,
+    `admin_org` varchar(3000) DEFAULT NULL,
+    `query_type` varchar(100) DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS `s2_tag` (
+    `id` INT NOT NULL  AUTO_INCREMENT,
+    `item_id` INT  NOT NULL ,
+    `type` varchar(50)  NOT NULL , -- METRIC DIMENSION
+    `created_at` TIMESTAMP NOT NULL ,
+    `created_by` varchar(100) NOT NULL ,
+    `updated_at` TIMESTAMP DEFAULT NULL ,
+    `updated_by` varchar(100) DEFAULT NULL ,
+    PRIMARY KEY (`id`)
+    );
+COMMENT ON TABLE s2_tag IS 'tag information';
+
+CREATE TABLE IF NOT EXISTS `s2_tag_object` (
+    `id` INT NOT NULL  AUTO_INCREMENT,
+    `domain_id` INT  NOT NULL ,
+    `name` varchar(255)  NOT NULL ,
+    `biz_name` varchar(255)  NOT NULL ,
+    `description` varchar(500) DEFAULT NULL ,
+    `status` INT  NOT NULL DEFAULT '1' ,
+    `sensitive_level` INT NOT NULL DEFAULT '1' ,
+    `created_at` TIMESTAMP NOT NULL ,
+    `created_by` varchar(100) NOT NULL ,
+    `updated_at` TIMESTAMP DEFAULT NULL ,
+    `updated_by` varchar(100) DEFAULT NULL ,
+    `ext` LONGVARCHAR DEFAULT NULL  ,
+    PRIMARY KEY (`id`)
+    );
+COMMENT ON TABLE s2_tag IS 'tag object information';
+
+CREATE TABLE IF NOT EXISTS `s2_query_rule` (
+    `id` INT NOT NULL  AUTO_INCREMENT,
+    `data_set_id` INT ,
+    `priority` INT  NOT NULL DEFAULT '1' ,
+    `rule_type` varchar(255)  NOT NULL ,
+    `name` varchar(255)  NOT NULL ,
+    `biz_name` varchar(255)  NOT NULL ,
+    `description` varchar(500) DEFAULT NULL ,
+    `rule` LONGVARCHAR DEFAULT NULL  ,
+    `action` LONGVARCHAR DEFAULT NULL  ,
+    `status` INT  NOT NULL DEFAULT '1' ,
+    `created_at` TIMESTAMP NOT NULL ,
+    `created_by` varchar(100) NOT NULL ,
+    `updated_at` TIMESTAMP DEFAULT NULL ,
+    `updated_by` varchar(100) DEFAULT NULL ,
+    `ext` LONGVARCHAR DEFAULT NULL  ,
+    PRIMARY KEY (`id`)
+    );
+COMMENT ON TABLE s2_query_rule IS 'tag query rule table';
+
+CREATE TABLE IF NOT EXISTS `s2_term` (
+    `id` INT NOT NULL  AUTO_INCREMENT,
+    `domain_id` INT ,
+    `name` varchar(255)  NOT NULL ,
+    `description` varchar(500) DEFAULT NULL ,
+    `alias` varchar(1000)  NOT NULL ,
+    `created_at` TIMESTAMP NOT NULL ,
+    `created_by` varchar(100) NOT NULL ,
+    `updated_at` TIMESTAMP DEFAULT NULL ,
+    `updated_by` varchar(100) DEFAULT NULL ,
+    PRIMARY KEY (`id`)
+    );
+COMMENT ON TABLE s2_term IS 'term info';

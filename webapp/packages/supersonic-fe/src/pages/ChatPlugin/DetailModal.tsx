@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Select, Form, Input, InputNumber, message, Button, Radio } from 'antd';
+import { Modal, Select, Form, Input, InputNumber, message, Button, Radio, TreeSelect } from 'antd';
 import { getDimensionList, getModelList, savePlugin } from './service';
 import {
   DimensionType,
@@ -10,7 +10,7 @@ import {
   FunctionParamFormItemType,
   PluginTypeEnum,
 } from './type';
-import { getLeafList, uuid } from '@/utils/utils';
+import { traverseTree, uuid } from '@/utils/utils';
 import styles from './style.less';
 import { PLUGIN_TYPE_MAP } from './constants';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
@@ -38,7 +38,13 @@ const DetailModal: React.FC<Props> = ({ detail, onSubmit, onCancel }) => {
 
   const initModelList = async () => {
     const res = await getModelList();
-    setModelList([{ id: -1, name: '默认' }, ...getLeafList(res.data)]);
+    const treeData = traverseTree(res.data, (node: any) => {
+      node.title = node.name;
+      node.value = node.type === 'DOMAIN' ? `DOMAIN_${node.id}` : node.id;
+      node.checkable =
+        node.type === 'DATASET' || (node.type === 'DOMAIN' && node.children?.length > 0);
+    });
+    setModelList([{ title: '默认', value: -1, type: 'DATASET' }, ...treeData]);
   };
 
   useEffect(() => {
@@ -181,18 +187,12 @@ const DetailModal: React.FC<Props> = ({ detail, onSubmit, onCancel }) => {
       onCancel={onCancel}
     >
       <Form {...layout} form={form} style={{ maxWidth: 820 }}>
-        <FormItem name="modelList" label="主题域">
-          <Select
-            placeholder="请选择主题域"
-            options={modelList.map((model) => ({
-              label: model.name,
-              value: model.id,
-            }))}
-            showSearch
-            filterOption={(input, option) =>
-              ((option?.label ?? '') as string).toLowerCase().includes(input.toLowerCase())
-            }
-            mode="multiple"
+        <FormItem name="dataSetList" label="数据集">
+          <TreeSelect
+            treeData={modelList}
+            placeholder="请选择数据集"
+            multiple
+            treeCheckable
             allowClear
           />
         </FormItem>
@@ -216,7 +216,7 @@ const DetailModal: React.FC<Props> = ({ detail, onSubmit, onCancel }) => {
             }))}
             onChange={(value) => {
               setPluginType(value);
-              if (value === PluginTypeEnum.LLM_S2SQL) {
+              if (value === PluginTypeEnum.NL2SQL_LLM) {
                 form.setFieldsValue({ parseMode: ParseModeEnum.FUNCTION_CALL });
                 setFunctionParams([
                   {
@@ -243,64 +243,6 @@ const DetailModal: React.FC<Props> = ({ detail, onSubmit, onCancel }) => {
         <FormItem name="pattern" label="函数描述">
           <TextArea placeholder="请输入函数描述，多个描述换行分隔" allowClear />
         </FormItem>
-        {/* <FormItem name="params" label="函数参数" hidden={pluginType === PluginTypeEnum.LLM_S2SQL}>
-          <div className={styles.paramsSection}>
-            {functionParams.map((functionParam: FunctionParamFormItemType) => {
-              const { id, name, type, description } = functionParam;
-              return (
-                <div className={styles.filterRow} key={id}>
-                  <Input
-                    placeholder="参数名称"
-                    value={name}
-                    className={styles.filterParamName}
-                    onChange={(e) => {
-                      functionParam.name = e.target.value;
-                      setFunctionParams([...functionParams]);
-                    }}
-                    allowClear
-                  />
-                  <Select
-                    placeholder="参数类型"
-                    options={[
-                      { label: '字符串', value: 'string' },
-                      { label: '整型', value: 'int' },
-                    ]}
-                    className={styles.filterParamValueField}
-                    allowClear
-                    value={type}
-                    onChange={(value) => {
-                      functionParam.type = value;
-                      setFunctionParams([...functionParams]);
-                    }}
-                  />
-                  <Input
-                    placeholder="参数描述"
-                    value={description}
-                    className={styles.filterParamValueField}
-                    onChange={(e) => {
-                      functionParam.description = e.target.value;
-                      setFunctionParams([...functionParams]);
-                    }}
-                    allowClear
-                  />
-                  <DeleteOutlined
-                    onClick={() => {
-                      setFunctionParams(functionParams.filter((item) => item.id !== id));
-                    }}
-                  />
-                </div>
-              );
-            })}
-            <Button
-              onClick={() => {
-                setFunctionParams([...functionParams, { id: uuid() }]);
-              }}
-            >
-              <PlusOutlined />
-              新增函数参数
-            </Button>
-          </div>
-        </FormItem> */}
         <FormItem name="exampleQuestions" label="示例问题">
           <div className={styles.paramsSection}>
             {examples.map((example) => {

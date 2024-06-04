@@ -10,12 +10,21 @@ import { SqlInfoType } from '../../common/type';
 
 type Props = {
   llmReq?: any;
+  llmResp?: any;
   integrateSystem?: string;
+  queryMode?: string;
   sqlInfo: SqlInfoType;
   sqlTimeCost?: number;
 };
 
-const SqlItem: React.FC<Props> = ({ llmReq, integrateSystem, sqlInfo, sqlTimeCost }) => {
+const SqlItem: React.FC<Props> = ({
+  llmReq,
+  llmResp,
+  integrateSystem,
+  queryMode,
+  sqlInfo,
+  sqlTimeCost,
+}) => {
   const [sqlType, setSqlType] = useState('');
 
   const tipPrefixCls = `${PREFIX_CLS}-item`;
@@ -34,6 +43,8 @@ const SqlItem: React.FC<Props> = ({ llmReq, integrateSystem, sqlInfo, sqlTimeCos
   }
 
   const { schema, linking, priorExts } = llmReq || {};
+
+  const fewShots = (Object.values(llmResp?.sqlRespMap || {})[0] as any)?.fewShots || [];
 
   return (
     <div className={`${tipPrefixCls}-parse-tip`}>
@@ -64,6 +75,18 @@ const SqlItem: React.FC<Props> = ({ llmReq, integrateSystem, sqlInfo, sqlTimeCos
               Schema映射
             </div>
           )}
+          {fewShots.length > 0 && (
+            <div
+              className={`${tipPrefixCls}-content-option ${
+                sqlType === 'fewShots' ? `${tipPrefixCls}-content-option-active` : ''
+              }`}
+              onClick={() => {
+                setSqlType(sqlType === 'fewShots' ? '' : 'fewShots');
+              }}
+            >
+              Few-shot示例
+            </div>
+          )}
           {sqlInfo.s2SQL && (
             <div
               className={`${tipPrefixCls}-content-option ${
@@ -73,7 +96,7 @@ const SqlItem: React.FC<Props> = ({ llmReq, integrateSystem, sqlInfo, sqlTimeCos
                 setSqlType(sqlType === 's2SQL' ? '' : 's2SQL');
               }}
             >
-              解析S2SQL
+              {queryMode === 'LLM_S2SQL' ? 'LLM' : 'Rule'}解析S2SQL
             </div>
           )}
           {sqlInfo.correctS2SQL && (
@@ -97,7 +120,7 @@ const SqlItem: React.FC<Props> = ({ llmReq, integrateSystem, sqlInfo, sqlTimeCos
                 setSqlType(sqlType === 'querySQL' ? '' : 'querySQL');
               }}
             >
-              执行SQL
+              最终执行SQL
             </div>
           )}
         </div>
@@ -139,6 +162,51 @@ const SqlItem: React.FC<Props> = ({ llmReq, integrateSystem, sqlInfo, sqlTimeCos
                 <div className={`${prefixCls}-schema-content`}>{priorExts}</div>
               </div>
             )}
+            {schema?.terms?.length > 0 && (
+              <div className={`${prefixCls}-schema-row`}>
+                <div className={`${prefixCls}-schema-title`}>术语：</div>
+                <div className={`${prefixCls}-schema-content`}>
+                  {schema.terms
+                    .map((item: any) => {
+                      return `${item.name}${
+                        item.alias?.length > 0 ? `(${item.alias.join(',')})` : ''
+                      }: ${item.description}`;
+                    })
+                    .join('、')}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {sqlType === 'fewShots' && (
+          <div className={`${prefixCls}-code`}>
+            {fewShots.map((item: any, index: number) => {
+              return (
+                <div key={index} className={`${prefixCls}-few-shot-item`}>
+                  <div className={`${prefixCls}-few-shot-title`}>示例{index + 1}：</div>
+                  <div className={`${prefixCls}-few-shot-content`}>
+                    <div className={`${prefixCls}-few-shot-content-item`}>
+                      <div className={`${prefixCls}-few-shot-content-title`}>问题：</div>
+                      <div className={`${prefixCls}-few-shot-content-text`}>
+                        {item.questionAugmented}
+                      </div>
+                    </div>
+                    <div className={`${prefixCls}-few-shot-content-item`}>
+                      <div className={`${prefixCls}-few-shot-content-title`}>SQL：</div>
+                      <div className={`${prefixCls}-few-shot-content-text`}>
+                        <SyntaxHighlighter
+                          className={`${prefixCls}-few-shot-code`}
+                          language="sql"
+                          style={solarizedlight}
+                        >
+                          {item.sql}
+                        </SyntaxHighlighter>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
         {sqlType && sqlInfo[sqlType] && (

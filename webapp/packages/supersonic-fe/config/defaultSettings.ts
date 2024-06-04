@@ -1,11 +1,11 @@
-import { Settings as LayoutSettings } from '@ant-design/pro-layout';
+import { ProLayoutProps } from '@ant-design/pro-components';
 
-const Settings: LayoutSettings & {
+const Settings: ProLayoutProps & {
   pwa?: boolean;
   logo?: string;
 } = {
-  navTheme: 'dark',
-  primaryColor: '#296DF3',
+  navTheme: 'light',
+  colorPrimary: '#296DF3',
   layout: 'top',
   contentWidth: 'Fluid',
   fixedHeader: false,
@@ -14,12 +14,13 @@ const Settings: LayoutSettings & {
   title: '',
   pwa: false,
   iconfontUrl: '//at.alicdn.com/t/c/font_4120566_x5c4www9bqm.js',
-  splitMenus: true,
-  menu: {
-    autoClose: false,
-    ignoreFlatMenu: true,
-  },
+  // splitMenus: true,
+  // menu: {
+  //   autoClose: false,
+  //   ignoreFlatMenu: true,
+  // },
 };
 export const publicPath = '/webapp/';
+export const basePath = '/';
 
 export default Settings;

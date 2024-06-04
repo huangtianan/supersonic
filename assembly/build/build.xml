@@ -21,8 +21,14 @@
             </includes>
         </fileSet>
         <fileSet>
-            <directory>${project.basedir}/../../chat/core/src/main/python</directory>
-            <outputDirectory>llmparser</outputDirectory>
+            <directory>${project.basedir}/../../headless/python</directory>
+            <outputDirectory>pyllm</outputDirectory>
+            <fileMode>0777</fileMode>
+            <directoryMode>0755</directoryMode>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/../../assembly/bin</directory>
+            <outputDirectory>bin</outputDirectory>
             <fileMode>0777</fileMode>
             <directoryMode>0755</directoryMode>
         </fileSet>

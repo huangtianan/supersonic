@@ -1,23 +1,18 @@
-import { Tabs, Button } from 'antd';
-import React from 'react';
-import { connect } from 'umi';
-
-import ClassDataSourceTable from './ClassDataSourceTable';
+import { Tabs, Breadcrumb, Space, Radio } from 'antd';
+import React, { useRef, useEffect, useState } from 'react';
+import { history, useModel } from '@umijs/max';
 import ClassDimensionTable from './ClassDimensionTable';
 import ClassMetricTable from './ClassMetricTable';
 import PermissionSection from './Permission/PermissionSection';
-import EntitySettingSection from './Entity/EntitySettingSection';
-import ChatSettingSection from '../ChatSetting/ChatSettingSection';
+import TagObjectTable from '../Insights/components/TagObjectTable';
+import TermTable from '../components/Term/TermTable';
 import OverView from './OverView';
 import styles from './style.less';
-import type { StateType } from '../model';
-import { LeftOutlined } from '@ant-design/icons';
+import { HomeOutlined, FundViewOutlined } from '@ant-design/icons';
 import { ISemantic } from '../data';
 import SemanticGraphCanvas from '../SemanticGraphCanvas';
 import RecommendedQuestionsSection from '../components/Entity/RecommendedQuestionsSection';
-import DatabaseTable from '../components/Database/DatabaseTable';
-
-import type { Dispatch } from 'umi';
+import View from '../View';
 
 type Props = {
   isModel: boolean;
@@ -26,26 +21,60 @@ type Props = {
   handleModelChange: (model?: ISemantic.IModelItem) => void;
   onBackDomainBtnClick?: () => void;
   onMenuChange?: (menuKey: string) => void;
-  domainManger: StateType;
-  dispatch: Dispatch;
 };
 const DomainManagerTab: React.FC<Props> = ({
   isModel,
   activeKey,
   modelList,
-  domainManger,
   handleModelChange,
   onBackDomainBtnClick,
   onMenuChange,
 }) => {
-  const defaultTabKey = 'xflow';
-  const { selectDomainId, domainList, selectModelId } = domainManger;
+  const initState = useRef<boolean>(false);
+  const defaultTabKey = 'metric';
+
+  const domainModel = useModel('SemanticModel.domainData');
+  const modelModel = useModel('SemanticModel.modelData');
+
+  const { selectDomainId, selectDomainName, selectDomain: domainData, domainList } = domainModel;
+  const { selectModelId, selectModelName } = modelModel;
+
+  useEffect(() => {
+    initState.current = false;
+  }, [selectModelId]);
+
+  const [showModelType, setShowModelType] = useState<string>('list');
+
+  const domainListParentIdList: number[] = Array.isArray(domainList)
+    ? Array.from(new Set(domainList.map((item) => item.parentId)))
+    : [];
+
   const tabItem = [
     {
       label: '模型管理',
       key: 'overview',
+      hidden: domainData && domainListParentIdList.includes(domainData.id),
+      children:
+        showModelType === 'list' ? (
+          <OverView
+            modelList={modelList}
+            onModelChange={(model) => {
+              handleModelChange(model);
+            }}
+          />
+        ) : (
+          <div style={{ width: '100%' }} key={selectDomainId}>
+            <SemanticGraphCanvas />
+            {/* <HeadlessFlows /> */}
+          </div>
+        ),
+    },
+    {
+      label: '数据集管理',
+      key: 'dataSetManage',
+      hidden: !!domainData?.parentId,
       children: (
-        <OverView
+        <View
           modelList={modelList}
           onModelChange={(model) => {
             handleModelChange(model);
@@ -54,18 +83,39 @@ const DomainManagerTab: React.FC<Props> = ({
       ),
     },
     {
-      label: '权限管理',
-      key: 'permissonSetting',
-      children: <PermissionSection permissionTarget={'domain'} />,
+      label: '标签对象管理',
+      key: 'tagObjectManage',
+      hidden: !!domainData?.parentId,
+      children: <TagObjectTable />,
     },
     {
-      label: '数据库管理',
-      key: 'database',
-      children: <DatabaseTable />,
+      label: '术语管理',
+      key: 'termManage',
+      hidden: !!domainData?.parentId,
+      children: <TermTable />,
+    },
+    // {
+    //   label: '画布',
+    //   key: 'xflow',
+    //   hidden: domainData && domainListParentIdList.includes(domainData.id),
+    //   children: (
+    //     <div style={{ width: '100%' }}>
+    //       <SemanticGraphCanvas />
+    //       {/* <HeadlessFlows /> */}
+    //     </div>
+    //   ),
+    // },
+    {
+      label: '权限管理',
+      key: 'permissonSetting',
+      hidden: !!domainData?.parentId,
+      children: <PermissionSection permissionTarget={'domain'} />,
     },
   ].filter((item) => {
-    const target = domainList.find((domain) => domain.id === selectDomainId);
-    if (target?.hasEditPermission) {
+    if (item.hidden) {
+      return false;
+    }
+    if (domainData?.hasEditPermission) {
       return true;
     }
     return item.key !== 'permissonSetting';
@@ -73,34 +123,23 @@ const DomainManagerTab: React.FC<Props> = ({
 
   const isModelItem = [
     {
-      label: '画布',
-      key: 'xflow',
+      label: '指标管理',
+      key: 'metric',
       children: (
-        <div style={{ width: '100%' }}>
-          <SemanticGraphCanvas />
-        </div>
+        <ClassMetricTable
+          onEmptyMetricData={() => {
+            if (!initState.current) {
+              initState.current = true;
+              onMenuChange?.('dimenstion');
+            }
+          }}
+        />
       ),
     },
-
     {
-      label: '数据源',
-      key: 'dataSource',
-      children: <ClassDataSourceTable />,
-    },
-    {
-      label: '维度',
+      label: '维度管理',
       key: 'dimenstion',
       children: <ClassDimensionTable />,
-    },
-    {
-      label: '指标',
-      key: 'metric',
-      children: <ClassMetricTable />,
-    },
-    {
-      label: '实体',
-      key: 'entity',
-      children: <EntitySettingSection />,
     },
     {
       label: '权限管理',
@@ -108,66 +147,91 @@ const DomainManagerTab: React.FC<Props> = ({
       children: <PermissionSection permissionTarget={'model'} />,
     },
     {
-      label: '问答设置',
-      key: 'chatSetting',
-      children: <ChatSettingSection />,
-    },
-    {
       label: '推荐问题',
       key: 'recommendedQuestions',
       children: <RecommendedQuestionsSection />,
     },
-  ].filter((item) => {
-    if (window.RUNNING_ENV === 'semantic') {
-      return !['chatSetting', 'recommendedQuestions'].includes(item.key);
+  ];
+
+  const getActiveKey = () => {
+    const key = activeKey || defaultTabKey;
+    const tabItems = !isModel ? tabItem : isModelItem;
+    const tabItemsKeys = tabItems.map((item) => item.key);
+    if (!tabItemsKeys.includes(key)) {
+      return tabItemsKeys[0];
     }
-    return item;
-  });
+    return key;
+  };
 
   return (
-    <>
+    <div>
+      <Breadcrumb
+        className={styles.breadcrumb}
+        separator=""
+        items={[
+          {
+            title: (
+              <Space
+                onClick={() => {
+                  onBackDomainBtnClick?.();
+                }}
+                style={
+                  selectModelName ? { cursor: 'pointer' } : { color: '#296df3', fontWeight: 'bold' }
+                }
+              >
+                <HomeOutlined />
+                <span>{selectDomainName}</span>
+              </Space>
+            ),
+          },
+          {
+            type: 'separator',
+            separator: selectModelName ? '/' : '',
+          },
+          {
+            title: selectModelName ? (
+              <Space
+                onClick={() => {
+                  history.push(`/model/${selectDomainId}/${selectModelId}/`);
+                }}
+                style={{ color: '#296df3' }}
+              >
+                <FundViewOutlined style={{ position: 'relative', top: '2px' }} />
+                <span>{selectModelName}</span>
+              </Space>
+            ) : undefined,
+          },
+        ]}
+      />
       <Tabs
         className={styles.tab}
-        items={!isModel ? tabItem : isModelItem}
-        activeKey={activeKey || defaultTabKey}
-        destroyInactiveTabPane
-        size="large"
+        items={!isModel ? tabItem : selectModelId ? isModelItem : []}
+        activeKey={getActiveKey()}
         tabBarExtraContent={{
-          left: (
-            <>
-              {!!selectModelId && (
-                <div
-                  className={styles.backBtn}
-                  onClick={() => {
-                    onBackDomainBtnClick?.();
-                  }}
-                >
-                  <LeftOutlined />
-                </div>
-              )}
-            </>
-          ),
-          // right: isModel ? (
-          //   <Button
-          //     type="primary"
-          //     icon={<LeftOutlined />}
-          //     onClick={() => {
-          //       onBackDomainBtnClick?.();
-          //     }}
-          //     style={{ marginRight: 10, marginBottom: 5 }}
-          //   >
-          //     返回主题域
-          //   </Button>
-          // ) : undefined,
+          right:
+            getActiveKey() === 'overview' ? (
+              <Radio.Group
+                defaultValue="list"
+                buttonStyle="solid"
+                size="small"
+                style={{ marginRight: 25 }}
+                onChange={(e) => {
+                  const showType = e.target.value;
+                  setShowModelType(showType);
+                }}
+              >
+                <Radio.Button value="list">列表</Radio.Button>
+                <Radio.Button value="canvas">画布</Radio.Button>
+              </Radio.Group>
+            ) : undefined,
         }}
+        size="large"
         onChange={(menuKey: string) => {
           onMenuChange?.(menuKey);
         }}
       />
-    </>
+    </div>
   );
 };
 
-export default connect(({ domainManger }: { domainManger: StateType }) => ({
-  domainManger,
-}))(DomainManagerTab);
+export default DomainManagerTab;

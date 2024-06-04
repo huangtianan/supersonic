@@ -1,18 +1,23 @@
 package com.tencent.supersonic.common.util;
 
+import com.google.common.collect.Lists;
+import com.tencent.supersonic.common.pojo.Constants;
+import lombok.extern.slf4j.Slf4j;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAdjuster;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
-import com.tencent.supersonic.common.pojo.Constants;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class DateUtils {
@@ -57,7 +62,6 @@ public class DateUtils {
         return DateTimeFormatter.ofPattern(formats[0]);
     }
 
-
     public static String getBeforeDate(int intervalDay) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(new Date());
@@ -66,8 +70,10 @@ public class DateUtils {
         return dateFormat.format(calendar.getTime());
     }
 
-
     public static String getBeforeDate(int intervalDay, DatePeriodEnum datePeriodEnum) {
+        if (Objects.isNull(datePeriodEnum)) {
+            return getBeforeDate(intervalDay);
+        }
         SimpleDateFormat dateFormat = new SimpleDateFormat(DATE_FORMAT);
         String currentDate = dateFormat.format(new Date());
         return getBeforeDate(currentDate, intervalDay, datePeriodEnum);
@@ -93,6 +99,19 @@ public class DateUtils {
                     result = result.with(TemporalAdjusters.firstDayOfMonth());
                 }
                 break;
+            case QUARTER:
+                result = currentDate.minusMonths(intervalDay * 3L);
+                if (intervalDay == 0) {
+                    TemporalAdjuster firstDayOfQuarter = temporal -> {
+                        LocalDate tempDate = LocalDate.from(temporal);
+                        int month = tempDate.get(ChronoField.MONTH_OF_YEAR);
+                        int firstMonthOfQuarter = ((month - 1) / 3) * 3 + 1;
+                        return tempDate.with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
+                                .with(TemporalAdjusters.firstDayOfMonth());
+                    };
+                    result = result.with(firstDayOfQuarter);
+                }
+                break;
             case YEAR:
                 result = currentDate.minusYears(intervalDay);
                 if (intervalDay == 0) {
@@ -106,7 +125,6 @@ public class DateUtils {
         }
         return null;
     }
-
 
     public static String format(Date date) {
         DateFormat dateFormat;
@@ -130,23 +148,52 @@ public class DateUtils {
     }
 
     public static List<String> getDateList(String startDateStr, String endDateStr, String period) {
-        LocalDate startDate = LocalDate.parse(startDateStr);
-        LocalDate endDate = LocalDate.parse(endDateStr);
-
-        List<String> datesInRange = new ArrayList<>();
-        LocalDate currentDate = startDate;
-
-        while (!currentDate.isAfter(endDate)) {
-            datesInRange.add(currentDate.format(DateTimeFormatter.ISO_DATE));
-            if (Constants.MONTH.equals(period)) {
-                currentDate = currentDate.plusMonths(1);
-            } else if (Constants.WEEK.equals(period)) {
-                currentDate = currentDate.plusWeeks(1);
-            } else {
-                currentDate = currentDate.plusDays(1);
+        try {
+            LocalDate startDate = LocalDate.parse(startDateStr);
+            LocalDate endDate = LocalDate.parse(endDateStr);
+            List<String> datesInRange = new ArrayList<>();
+            LocalDate currentDate = startDate;
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM");
+            while (!currentDate.isAfter(endDate)) {
+                if (Constants.MONTH.equals(period)) {
+                    datesInRange.add(currentDate.format(formatter));
+                    currentDate = currentDate.plusMonths(1);
+                } else if (Constants.WEEK.equals(period)) {
+                    datesInRange.add(currentDate.format(DateTimeFormatter.ISO_DATE));
+                    currentDate = currentDate.plusWeeks(1);
+                } else {
+                    datesInRange.add(currentDate.format(DateTimeFormatter.ISO_DATE));
+                    currentDate = currentDate.plusDays(1);
+                }
             }
+            return datesInRange;
+        } catch (Exception e) {
+            log.info("parse date failed, startDate:{}, endDate:{}", startDateStr, endDateStr, e);
         }
-        return datesInRange;
+        return Lists.newArrayList();
     }
 
+    public static boolean isAnyDateString(String value) {
+        List<String> formats = Arrays.asList("yyyy-MM-dd", "yyyy-MM", "yyyy/MM/dd");
+        return isAnyDateString(value, formats);
+    }
+
+    public static boolean isAnyDateString(String value, List<String> formats) {
+        for (String format : formats) {
+            if (isDateString(value, format)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isDateString(String value, String format) {
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+            LocalDate.parse(value, formatter);
+            return true;
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+    }
 }
