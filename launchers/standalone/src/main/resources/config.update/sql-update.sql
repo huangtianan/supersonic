@@ -320,3 +320,12 @@ alter table s2_sys_parameter rename to s2_system_config;
 
 --20240603
 alter table s2_chat_query add column `parse_time_cost` varchar(1024);
+
+--20240609
+alter table s2_user add column `salt` varchar(256) DEFAULT NULL COMMENT 'md5密码盐';
+
+--20240621
+alter table s2_agent add column `visual_config` varchar(2000)  COLLATE utf8_unicode_ci DEFAULT NULL COMMENT '可视化配置';
+
+alter table s2_term add column `related_metrics` varchar(1000)  DEFAULT NULL  COMMENT '术语关联的指标';
+alter table s2_term add column `related_dimensions` varchar(1000)  DEFAULT NULL  COMMENT '术语关联的维度';

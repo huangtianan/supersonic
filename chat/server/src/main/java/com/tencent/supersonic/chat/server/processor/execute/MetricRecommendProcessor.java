@@ -5,14 +5,14 @@ import com.tencent.supersonic.chat.server.pojo.ChatExecuteContext;
 import com.tencent.supersonic.common.pojo.Constants;
 import com.tencent.supersonic.common.pojo.enums.QueryType;
 import com.tencent.supersonic.common.util.ContextUtils;
-import com.tencent.supersonic.common.util.embedding.Retrieval;
-import com.tencent.supersonic.common.util.embedding.RetrieveQuery;
-import com.tencent.supersonic.common.util.embedding.RetrieveQueryResult;
+import dev.langchain4j.store.embedding.Retrieval;
+import dev.langchain4j.store.embedding.RetrieveQuery;
+import dev.langchain4j.store.embedding.RetrieveQueryResult;
 import com.tencent.supersonic.headless.api.pojo.SchemaElement;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementType;
 import com.tencent.supersonic.headless.api.pojo.SemanticParseInfo;
 import com.tencent.supersonic.headless.api.pojo.response.QueryResult;
-import com.tencent.supersonic.headless.core.chat.knowledge.MetaEmbeddingService;
+import com.tencent.supersonic.headless.chat.knowledge.MetaEmbeddingService;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Collections;

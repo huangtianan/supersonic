@@ -91,6 +91,7 @@ create table IF NOT EXISTS s2_user
     password varchar(100) null,
     email varchar(100) null,
     is_admin INT null,
+    salt varchar(100) null,
     PRIMARY KEY (`id`)
 );
 COMMENT ON TABLE s2_user IS 'user information table';
@@ -355,6 +356,7 @@ CREATE TABLE IF NOT EXISTS s2_agent
     config      varchar(2000)  null,
     llm_config varchar(2000)  null,
     multi_turn_config varchar(2000)  null,
+    visual_config varchar(2000)  null,
     created_by  varchar(100) null,
     created_at  TIMESTAMP  null,
     updated_by  varchar(100) null,
@@ -637,6 +639,8 @@ CREATE TABLE IF NOT EXISTS `s2_term` (
     `name` varchar(255)  NOT NULL ,
     `description` varchar(500) DEFAULT NULL ,
     `alias` varchar(1000)  NOT NULL ,
+    `related_metrics` varchar(1000)  DEFAULT NULL ,
+    `related_dimensions` varchar(1000)  DEFAULT NULL,
     `created_at` TIMESTAMP NOT NULL ,
     `created_by` varchar(100) NOT NULL ,
     `updated_at` TIMESTAMP DEFAULT NULL ,
