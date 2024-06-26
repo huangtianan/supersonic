@@ -29,8 +29,8 @@ import com.tencent.supersonic.headless.api.pojo.response.MapResp;
 import com.tencent.supersonic.headless.api.pojo.response.ParseResp;
 import com.tencent.supersonic.headless.api.pojo.response.QueryResult;
 import com.tencent.supersonic.headless.api.pojo.response.SearchResult;
-import com.tencent.supersonic.headless.server.service.ChatQueryService;
-import com.tencent.supersonic.headless.server.service.RetrieveService;
+import com.tencent.supersonic.headless.server.facade.service.ChatQueryService;
+import com.tencent.supersonic.headless.server.facade.service.RetrieveService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -47,7 +47,7 @@ public class ChatServiceImpl implements ChatService {
     @Autowired
     private ChatQueryService chatQueryService;
     @Autowired
-    private RetrieveService searchService;
+    private RetrieveService retrieveService;
     @Autowired
     private SimilarQueryManager similarQueryManager;
     private List<ChatParser> chatParsers = ComponentFactory.getChatParsers();
@@ -59,7 +59,7 @@ public class ChatServiceImpl implements ChatService {
     public List<SearchResult> search(ChatParseReq chatParseReq) {
         ChatParseContext chatParseContext = buildParseContext(chatParseReq);
         QueryReq queryReq = QueryReqConverter.buildText2SqlQueryReq(chatParseContext);
-        return searchService.search(queryReq);
+        return retrieveService.retrieve(queryReq);
     }
 
     @Override
@@ -90,10 +90,14 @@ public class ChatServiceImpl implements ChatService {
                 break;
             }
         }
-        for (ExecuteResultProcessor processor : executeResultProcessors) {
-            processor.process(chatExecuteContext, queryResult);
+
+        if (queryResult != null) {
+            for (ExecuteResultProcessor processor : executeResultProcessors) {
+                processor.process(chatExecuteContext, queryResult);
+            }
+            saveQueryResult(chatExecuteReq, queryResult);
         }
-        saveQueryResult(chatExecuteReq, queryResult);
+
         return queryResult;
     }
 
