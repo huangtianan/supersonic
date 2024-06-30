@@ -1,13 +1,17 @@
 package com.tencent.supersonic.chat.server.parser;
 
+import static com.tencent.supersonic.chat.server.parser.ParserConfig.PARSER_MULTI_TURN_ENABLE;
+
 import com.tencent.supersonic.chat.server.agent.MultiTurnConfig;
 import com.tencent.supersonic.chat.server.persistence.repository.ChatQueryRepository;
 import com.tencent.supersonic.chat.server.plugin.PluginQueryManager;
 import com.tencent.supersonic.chat.server.pojo.ChatParseContext;
 import com.tencent.supersonic.chat.server.util.QueryReqConverter;
+import com.tencent.supersonic.common.config.EmbeddingConfig;
 import com.tencent.supersonic.common.config.LLMConfig;
+import com.tencent.supersonic.common.pojo.SqlExemplar;
+import com.tencent.supersonic.common.service.impl.ExemplarServiceImpl;
 import com.tencent.supersonic.common.util.ContextUtils;
-import com.tencent.supersonic.common.util.S2ChatModelProvider;
 import com.tencent.supersonic.headless.api.pojo.SchemaElement;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementMatch;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementType;
@@ -22,13 +26,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.model.output.Response;
-import lombok.Builder;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.util.CollectionUtils;
-
+import dev.langchain4j.model.provider.ChatLanguageModelProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,8 +34,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static com.tencent.supersonic.chat.server.parser.ParserConfig.PARSER_MULTI_TURN_ENABLE;
+import lombok.Builder;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.util.CollectionUtils;
 
 @Slf4j
 public class NL2SQLParser implements ChatParser {
@@ -64,9 +66,11 @@ public class NL2SQLParser implements ChatParser {
         if (!chatParseContext.enableNL2SQL() || checkSkip(parseResp)) {
             return;
         }
-        processMultiTurn(chatParseContext, parseResp);
+        processMultiTurn(chatParseContext);
 
         QueryReq queryReq = QueryReqConverter.buildText2SqlQueryReq(chatParseContext);
+        addExemplars(chatParseContext.getAgent().getId(), queryReq);
+
         ChatQueryService chatQueryService = ContextUtils.getBean(ChatQueryService.class);
         ParseResp text2SqlParseResp = chatQueryService.performParsing(queryReq);
         if (!ParseResp.ParseState.FAILED.equals(text2SqlParseResp.getState())) {
@@ -131,7 +135,7 @@ public class NL2SQLParser implements ChatParser {
         parseInfo.setTextInfo(textBuilder.toString());
     }
 
-    private void processMultiTurn(ChatParseContext chatParseContext, ParseResp parseResp) {
+    private void processMultiTurn(ChatParseContext chatParseContext) {
         ParserConfig parserConfig = ContextUtils.getBean(ParserConfig.class);
         MultiTurnConfig agentMultiTurnConfig = chatParseContext.getAgent().getMultiTurnConfig();
         Boolean globalMultiTurnConfig = Boolean.valueOf(parserConfig.getParameterValue(PARSER_MULTI_TURN_ENABLE));
@@ -176,7 +180,7 @@ public class NL2SQLParser implements ChatParser {
         Prompt prompt = PromptTemplate.from(promptStr).apply(Collections.EMPTY_MAP);
         keyPipelineLog.info("NL2SQLParser reqPrompt:{}", promptStr);
 
-        ChatLanguageModel chatLanguageModel = S2ChatModelProvider.provide(context.getLlmConfig());
+        ChatLanguageModel chatLanguageModel = ChatLanguageModelProvider.provide(context.getLlmConfig());
         Response<AiMessage> response = chatLanguageModel.generate(prompt.toUserMessage());
 
         String result = response.content().text();
@@ -218,6 +222,15 @@ public class NL2SQLParser implements ChatParser {
                 Math.min(multiNum, contextualParseInfoList.size()));
         Collections.reverse(contextualList);
         return contextualList;
+    }
+
+    private void addExemplars(Integer agentId, QueryReq queryReq) {
+        ExemplarServiceImpl exemplarManager = ContextUtils.getBean(ExemplarServiceImpl.class);
+        EmbeddingConfig embeddingConfig = ContextUtils.getBean(EmbeddingConfig.class);
+        String memoryCollectionName = embeddingConfig.getMemoryCollectionName(agentId);
+        List<SqlExemplar> exemplars = exemplarManager.recallExemplars(memoryCollectionName,
+                queryReq.getQueryText(), 5);
+        queryReq.getExemplars().addAll(exemplars);
     }
 
     @Builder

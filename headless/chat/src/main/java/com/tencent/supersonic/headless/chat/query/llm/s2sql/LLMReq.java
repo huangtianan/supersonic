@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.collect.Lists;
 import com.tencent.supersonic.common.config.LLMConfig;
 import com.tencent.supersonic.headless.api.pojo.SchemaElement;
+import com.tencent.supersonic.common.pojo.SqlExemplar;
 import lombok.Data;
 
 import java.util.List;
@@ -26,6 +27,9 @@ public class LLMReq {
     private SqlGenType sqlGenType;
 
     private LLMConfig llmConfig;
+
+    private List<SqlExemplar> exemplars;
+
     @Data
     public static class ElementValue {
 
@@ -72,8 +76,8 @@ public class LLMReq {
     }
 
     public enum SqlGenType {
-        ONE_PASS_SELF_CONSISTENCY("1_pass_self_consistency"),
-        TWO_PASS_AUTO_COT_SELF_CONSISTENCY("2_pass_auto_cot_self_consistency");
+
+        ONE_PASS_SELF_CONSISTENCY("1_pass_self_consistency");
 
         private String name;
 
