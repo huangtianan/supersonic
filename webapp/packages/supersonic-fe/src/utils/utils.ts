@@ -472,11 +472,11 @@ export const objToArray = (_obj: ObjToArrayParams, keyType: string = 'string') =
   });
 };
 
-const encryptKey = CryptoJS.enc.Hex.parse(
+export const encryptKey = CryptoJS.enc.Hex.parse(
   '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
 );
 
-export const encryptPassword = (password: string, key?: any) => {
+export const encryptPassword = (password: string, key?: string) => {
   if (!password) {
     return password;
   }
@@ -497,4 +497,21 @@ export function decryptPassword(encryptPassword: string) {
     padding: CryptoJS.pad.Pkcs7,
   });
   return CryptoJS.enc.Utf8.stringify(decrypt).toString();
+}
+
+export function uniqueArray(arr: any[]) {
+  return Array.from(new Set(arr));
+}
+
+// 替换以:开头标记的变量
+export const replaceRouteParams = (template: string, values: Record<string, string>): string => {
+  return template.replace(/:([a-zA-Z0-9_]+)/g, (match, key) => {
+    return values[key] !== undefined ? values[key] : match;
+  });
+};
+
+export function openNewPage(url: string) {
+  const newWindow: any = window.open();
+  newWindow.opener = null;
+  newWindow.location.href = url;
 }

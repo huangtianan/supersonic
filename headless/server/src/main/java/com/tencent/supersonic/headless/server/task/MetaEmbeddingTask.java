@@ -1,12 +1,15 @@
 package com.tencent.supersonic.headless.server.task;
 
+import javax.annotation.PreDestroy;
+
 import com.tencent.supersonic.common.config.EmbeddingConfig;
 import com.tencent.supersonic.common.pojo.DataItem;
 import com.tencent.supersonic.common.service.EmbeddingService;
-import com.tencent.supersonic.headless.server.web.service.DimensionService;
-import com.tencent.supersonic.headless.server.web.service.MetricService;
+import com.tencent.supersonic.headless.server.service.DimensionService;
+import com.tencent.supersonic.headless.server.service.MetricService;
 import dev.langchain4j.inmemory.spring.InMemoryEmbeddingStoreFactory;
 import dev.langchain4j.store.embedding.EmbeddingStoreFactory;
+import dev.langchain4j.store.embedding.EmbeddingStoreFactoryProvider;
 import dev.langchain4j.store.embedding.TextSegmentConvert;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +18,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PreDestroy;
 import java.util.List;
 
 @Component
@@ -35,15 +37,13 @@ public class MetaEmbeddingTask implements CommandLineRunner {
     @Autowired
     private DimensionService dimensionService;
 
-    @Autowired
-    private EmbeddingStoreFactory embeddingStoreFactory;
-
     @PreDestroy
     public void onShutdown() {
         embeddingStorePersistFile();
     }
 
     private void embeddingStorePersistFile() {
+        EmbeddingStoreFactory embeddingStoreFactory = EmbeddingStoreFactoryProvider.getFactory();
         if (embeddingStoreFactory instanceof InMemoryEmbeddingStoreFactory) {
             long startTime = System.currentTimeMillis();
             InMemoryEmbeddingStoreFactory inMemoryFactory =
@@ -59,9 +59,7 @@ public class MetaEmbeddingTask implements CommandLineRunner {
         embeddingStorePersistFile();
     }
 
-    /***
-     * reload meta embedding
-     */
+    /** * reload meta embedding */
     @Scheduled(cron = "${s2.reload.meta.embedding.corn:0 0 */2 * * ?}")
     public void reloadMetaEmbedding() {
         long startTime = System.currentTimeMillis();
@@ -71,7 +69,7 @@ public class MetaEmbeddingTask implements CommandLineRunner {
             embeddingService.addQuery(embeddingConfig.getMetaCollectionName(),
                     TextSegmentConvert.convertToEmbedding(metricDataItems));
 
-            List<DataItem> dimensionDataItems = dimensionService.getDataEvent().getDataItems();
+            List<DataItem> dimensionDataItems = dimensionService.getAllDataEvents().getDataItems();
             embeddingService.addQuery(embeddingConfig.getMetaCollectionName(),
                     TextSegmentConvert.convertToEmbedding(dimensionDataItems));
         } catch (Exception e) {

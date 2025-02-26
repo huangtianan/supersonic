@@ -1,20 +1,11 @@
 package com.tencent.supersonic.headless.core.executor;
 
+import com.tencent.supersonic.common.calcite.Configuration;
 import com.tencent.supersonic.common.jsqlparser.SqlSelectHelper;
-import com.tencent.supersonic.headless.core.translator.calcite.Configuration;
-import com.tencent.supersonic.headless.core.translator.calcite.s2sql.TimeRange;
-import com.tencent.supersonic.headless.core.translator.calcite.schema.DataSourceTable;
-import com.tencent.supersonic.headless.core.translator.calcite.schema.DataSourceTable.Builder;
-import com.tencent.supersonic.headless.core.translator.calcite.schema.SchemaBuilder;
 import com.tencent.supersonic.headless.core.pojo.Materialization;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
-import java.util.Set;
-import java.util.stream.Collectors;
+import com.tencent.supersonic.headless.core.translator.parser.calcite.S2CalciteTable;
+import com.tencent.supersonic.headless.core.translator.parser.calcite.S2CalciteTable.Builder;
+import com.tencent.supersonic.headless.core.translator.parser.calcite.SchemaBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.calcite.adapter.enumerable.EnumerableRules;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
@@ -45,9 +36,16 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.util.CollectionUtils;
 
-/**
- * abstract of accelerator , provide Basic methods
- */
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/** abstract of accelerator , provide Basic methods */
 @Slf4j
 public abstract class AbstractAccelerator implements QueryAccelerator {
 
@@ -56,12 +54,10 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
     public static final String MATERIALIZATION_SYS_VIEW = "sys_view";
     public static final String MATERIALIZATION_SYS_PARTITION = "sys_partition";
 
-    /**
-     * check if a materialization match the fields and partitions
-     */
+    /** check if a materialization match the fields and partitions */
     protected boolean check(RelOptPlanner relOptPlanner, RelBuilder relBuilder,
-            CalciteCatalogReader calciteCatalogReader, Materialization materialization, List<String> fields,
-            List<ImmutablePair<String, String>> partitions) {
+            CalciteCatalogReader calciteCatalogReader, Materialization materialization,
+            List<String> fields, List<ImmutablePair<String, String>> partitions) {
         if (!materialization.isPartitioned()) {
             return fields.stream().allMatch(f -> materialization.getColumns().contains(f));
         }
@@ -75,7 +71,8 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
 
         Set<String> materializationFields = new HashSet<>(viewFields);
         materializationFields.addAll(queryFields);
-        List<String> materializationFieldList = materializationFields.stream().collect(Collectors.toList());
+        List<String> materializationFieldList =
+                materializationFields.stream().collect(Collectors.toList());
 
         relBuilder.clear();
         if (!CollectionUtils.isEmpty(relOptPlanner.getMaterializations())) {
@@ -83,32 +80,38 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
         }
 
         Materialization viewMaterialization = Materialization.builder().build();
-        viewMaterialization.setName(String.format("%s.%s", MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_VIEW));
+        viewMaterialization
+                .setName(String.format("%s.%s", MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_VIEW));
         viewMaterialization.setColumns(viewFieldList);
         addMaterialization(calciteCatalogReader.getRootSchema(), viewMaterialization);
 
         Materialization queryMaterialization = Materialization.builder().build();
-        queryMaterialization.setName(String.format("%s.%s", MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_SOURCE));
+        queryMaterialization.setName(
+                String.format("%s.%s", MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_SOURCE));
 
         queryMaterialization.setColumns(materializationFieldList);
         addMaterialization(calciteCatalogReader.getRootSchema(), queryMaterialization);
 
-        RelNode replacement = relBuilder.scan(Arrays.asList(MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_VIEW)).build();
-        RelBuilder viewBuilder = relBuilder.scan(Arrays.asList(MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_SOURCE));
+        RelNode replacement = relBuilder
+                .scan(Arrays.asList(MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_VIEW)).build();
+        RelBuilder viewBuilder =
+                relBuilder.scan(Arrays.asList(MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_SOURCE));
         if (materialization.isPartitioned()) {
-            RexNode viewFilter = getRexNode(relBuilder, materialization,
-                    MATERIALIZATION_SYS_PARTITION);
+            RexNode viewFilter =
+                    getRexNode(relBuilder, materialization, MATERIALIZATION_SYS_PARTITION);
             viewBuilder = viewBuilder.filter(viewFilter);
         }
         RelNode viewRel = project(viewBuilder, viewFieldList).build();
         List<String> view = Arrays.asList(MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_VIEW);
-        RelOptMaterialization relOptMaterialization = new RelOptMaterialization(replacement, viewRel, null,
-                view);
+        RelOptMaterialization relOptMaterialization =
+                new RelOptMaterialization(replacement, viewRel, null, view);
         relOptPlanner.addMaterialization(relOptMaterialization);
 
-        RelBuilder checkBuilder = relBuilder.scan(Arrays.asList(MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_SOURCE));
+        RelBuilder checkBuilder =
+                relBuilder.scan(Arrays.asList(MATERIALIZATION_SYS_DB, MATERIALIZATION_SYS_SOURCE));
         if (materialization.isPartitioned()) {
-            checkBuilder = checkBuilder.filter(getRexNode(checkBuilder, partitions, MATERIALIZATION_SYS_PARTITION));
+            checkBuilder = checkBuilder
+                    .filter(getRexNode(checkBuilder, partitions, MATERIALIZATION_SYS_PARTITION));
         }
         RelNode checkRel = project(checkBuilder, queryFieldList).build();
         relOptPlanner.setRoot(checkRel);
@@ -124,10 +127,8 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
     protected CalciteCatalogReader getCalciteCatalogReader() {
         CalciteCatalogReader calciteCatalogReader;
         CalciteSchema viewSchema = SchemaBuilder.getMaterializationSchema();
-        calciteCatalogReader = new CalciteCatalogReader(
-                CalciteSchema.from(viewSchema.plus()),
-                CalciteSchema.from(viewSchema.plus()).path(null),
-                Configuration.typeFactory,
+        calciteCatalogReader = new CalciteCatalogReader(CalciteSchema.from(viewSchema.plus()),
+                CalciteSchema.from(viewSchema.plus()).path(null), Configuration.typeFactory,
                 new CalciteConnectionConfigImpl(new Properties()));
         return calciteCatalogReader;
     }
@@ -149,18 +150,19 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
         return RelFactories.LOGICAL_BUILDER.create(relOptCluster, calciteCatalogReader);
     }
 
-    protected void addMaterialization(CalciteSchema dataSetSchema, Materialization materialization) {
+    protected void addMaterialization(CalciteSchema dataSetSchema,
+            Materialization materialization) {
         String[] dbTable = materialization.getName().split("\\.");
         String tb = dbTable[1].toLowerCase();
         String db = dbTable[0].toLowerCase();
-        Builder builder = DataSourceTable.newBuilder(tb);
+        Builder builder = S2CalciteTable.newBuilder(tb);
         for (String f : materialization.getColumns()) {
             builder.addField(f, SqlTypeName.VARCHAR);
         }
         if (StringUtils.isNotBlank(materialization.getPartitionName())) {
             builder.addField(materialization.getPartitionName(), SqlTypeName.VARCHAR);
         }
-        DataSourceTable srcTable = builder.withRowCount(1L).build();
+        S2CalciteTable srcTable = builder.withRowCount(1L).build();
         if (Objects.nonNull(db) && !db.isEmpty()) {
             SchemaPlus schemaPlus = dataSetSchema.plus().getSubSchema(db);
             if (Objects.isNull(schemaPlus)) {
@@ -171,7 +173,6 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
         } else {
             dataSetSchema.add(tb, srcTable);
         }
-
     }
 
     protected Set<String> extractTableNames(RelNode relNode) {
@@ -187,7 +188,8 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
         return tableNames;
     }
 
-    protected RexNode getRexNodeByTimeRange(RelBuilder relBuilder, TimeRange timeRange, String field) {
+    protected RexNode getRexNodeByTimeRange(RelBuilder relBuilder, TimeRange timeRange,
+            String field) {
         return relBuilder.call(SqlStdOperatorTable.AND,
                 relBuilder.call(SqlStdOperatorTable.GREATER_THAN_OR_EQUAL, relBuilder.field(field),
                         relBuilder.literal(timeRange.getStart())),
@@ -195,7 +197,8 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
                         relBuilder.literal(timeRange.getEnd())));
     }
 
-    protected RexNode getRexNode(RelBuilder relBuilder, Materialization materialization, String viewField) {
+    protected RexNode getRexNode(RelBuilder relBuilder, Materialization materialization,
+            String viewField) {
         RexNode rexNode = null;
         for (String partition : materialization.getPartitions()) {
             TimeRange timeRange = TimeRange.builder().start(partition).end(partition).build();
@@ -209,8 +212,8 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
         return rexNode;
     }
 
-    protected RexNode getRexNode(RelBuilder relBuilder, List<ImmutablePair<String, String>> timeRanges,
-            String viewField) {
+    protected RexNode getRexNode(RelBuilder relBuilder,
+            List<ImmutablePair<String, String>> timeRanges, String viewField) {
         RexNode rexNode = null;
         for (ImmutablePair<String, String> timeRange : timeRanges) {
             if (rexNode == null) {
@@ -228,7 +231,8 @@ public abstract class AbstractAccelerator implements QueryAccelerator {
     }
 
     private static RelBuilder project(RelBuilder relBuilder, List<String> fields) {
-        List<RexNode> rexNodes = fields.stream().map(f -> relBuilder.field(f)).collect(Collectors.toList());
+        List<RexNode> rexNodes =
+                fields.stream().map(f -> relBuilder.field(f)).collect(Collectors.toList());
         return relBuilder.project(rexNodes);
     }
 }

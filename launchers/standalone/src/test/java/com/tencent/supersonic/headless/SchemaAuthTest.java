@@ -1,18 +1,19 @@
 package com.tencent.supersonic.headless;
 
 import com.google.common.collect.Lists;
-import com.tencent.supersonic.auth.api.authentication.pojo.User;
+import com.tencent.supersonic.common.pojo.User;
 import com.tencent.supersonic.common.pojo.enums.AuthType;
+import com.tencent.supersonic.headless.api.pojo.response.DataSetResp;
 import com.tencent.supersonic.headless.api.pojo.response.DomainResp;
 import com.tencent.supersonic.headless.api.pojo.response.ModelResp;
-import com.tencent.supersonic.headless.api.pojo.response.DataSetResp;
-import com.tencent.supersonic.headless.server.web.service.DomainService;
-import com.tencent.supersonic.headless.server.web.service.ModelService;
-import com.tencent.supersonic.headless.server.web.service.DataSetService;
+import com.tencent.supersonic.headless.server.service.DataSetService;
+import com.tencent.supersonic.headless.server.service.DomainService;
+import com.tencent.supersonic.headless.server.service.ModelService;
 import com.tencent.supersonic.util.DataUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,7 +50,7 @@ public class SchemaAuthTest extends BaseTest {
     @Test
     public void test_getVisibleModelList_alice() {
         User user = DataUtils.getUserAlice();
-        List<ModelResp> modelResps = modelService.getModelListWithAuth(user, null, AuthType.VISIBLE);
+        List<ModelResp> modelResps = modelService.getModelListWithAuth(user, null, AuthType.VIEWER);
         List<String> expectedModelBizNames = Lists.newArrayList("user_department", "singer");
         Assertions.assertEquals(expectedModelBizNames,
                 modelResps.stream().map(ModelResp::getBizName).collect(Collectors.toList()));
@@ -77,8 +78,8 @@ public class SchemaAuthTest extends BaseTest {
     public void test_getModelList_jack() {
         User user = DataUtils.getUserJack();
         List<ModelResp> modelResps = modelService.getModelListWithAuth(user, null, AuthType.ADMIN);
-        List<String> expectedModelBizNames = Lists.newArrayList("user_department",
-                "s2_pv_uv_statis", "s2_stay_time_statis");
+        List<String> expectedModelBizNames =
+                Lists.newArrayList("user_department", "s2_pv_uv_statis", "s2_stay_time_statis");
         Assertions.assertEquals(expectedModelBizNames,
                 modelResps.stream().map(ModelResp::getBizName).collect(Collectors.toList()));
     }
@@ -91,5 +92,4 @@ public class SchemaAuthTest extends BaseTest {
         Assertions.assertEquals(expectedDataSetBizNames,
                 dataSetResps.stream().map(DataSetResp::getBizName).collect(Collectors.toList()));
     }
-
 }

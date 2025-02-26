@@ -1,6 +1,5 @@
 package com.hankcs.hanlp.dictionary;
 
-
 import com.hankcs.hanlp.HanLP;
 import com.hankcs.hanlp.collection.trie.DoubleArrayTrie;
 import com.hankcs.hanlp.corpus.io.ByteArray;
@@ -8,6 +7,7 @@ import com.hankcs.hanlp.corpus.io.IOUtil;
 import com.hankcs.hanlp.corpus.tag.Nature;
 import com.hankcs.hanlp.utility.Predefine;
 import com.hankcs.hanlp.utility.TextUtility;
+
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -21,9 +21,7 @@ import java.util.List;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-/**
- * 使用DoubleArrayTrie实现的核心词典
- */
+/** 使用DoubleArrayTrie实现的核心词典 */
 public class CoreDictionary {
 
     public static DoubleArrayTrie<Attribute> trie = new DoubleArrayTrie<Attribute>();
@@ -74,10 +72,8 @@ public class CoreDictionary {
                 map.put(param[0], attribute);
                 totalFrequency += attribute.totalFrequency;
             }
-            Predefine.logger.info(
-                    "核心词典读入词条" + map.size() + " 全部频次" + totalFrequency + "，耗时" + (
-                            System.currentTimeMillis() - start)
-                            + "ms");
+            Predefine.logger.info("核心词典读入词条" + map.size() + " 全部频次" + totalFrequency + "，耗时"
+                    + (System.currentTimeMillis() - start) + "ms");
             br.close();
             trie.build(map);
             Predefine.logger.info("核心词典加载成功:" + trie.size() + "个词条，下面将写入缓存……");
@@ -202,24 +198,17 @@ public class CoreDictionary {
         return trie.get(key) != null;
     }
 
-    /**
-     * 核心词典中的词属性
-     */
+    /** 核心词典中的词属性 */
     public static class Attribute implements Serializable {
 
-        /**
-         * 词性列表
-         */
+        /** 词性列表 */
         public Nature[] nature;
-        /**
-         * 词性对应的词频
-         */
+        /** 词性对应的词频 */
         public int[] frequency;
 
         public int totalFrequency;
         public String[] originals;
         public String original = null;
-
 
         public Attribute(int size) {
             nature = new Nature[size];
@@ -404,7 +393,8 @@ public class CoreDictionary {
             if (originals == null || originals.length == 0) {
                 return null;
             }
-            return Arrays.stream(originals).filter(o -> o != null).distinct().collect(Collectors.toList());
+            return Arrays.stream(originals).filter(o -> o != null).distinct()
+                    .collect(Collectors.toList());
         }
     }
 
@@ -431,4 +421,3 @@ public class CoreDictionary {
         return load(path);
     }
 }
-

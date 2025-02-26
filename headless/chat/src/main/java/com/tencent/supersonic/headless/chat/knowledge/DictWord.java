@@ -1,19 +1,25 @@
 package com.tencent.supersonic.headless.chat.knowledge;
 
-import java.util.Objects;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.ToString;
 
-/***
- * word nature
- */
+import java.util.Objects;
+
+/** * word nature */
 @Data
 @ToString
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class DictWord {
 
     private String word;
     private String nature;
     private String natureWithFrequency;
+    private String alias;
 
     @Override
     public boolean equals(Object o) {
@@ -24,7 +30,8 @@ public class DictWord {
             return false;
         }
         DictWord that = (DictWord) o;
-        return Objects.equals(word, that.word) && Objects.equals(natureWithFrequency, that.natureWithFrequency);
+        return Objects.equals(word, that.word)
+                && Objects.equals(natureWithFrequency, that.natureWithFrequency);
     }
 
     @Override

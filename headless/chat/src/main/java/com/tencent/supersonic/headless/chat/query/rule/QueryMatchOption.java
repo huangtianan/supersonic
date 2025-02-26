@@ -41,5 +41,4 @@ public class QueryMatchOption {
     public enum OptionType {
         REQUIRED, OPTIONAL, UNUSED
     }
-
 }

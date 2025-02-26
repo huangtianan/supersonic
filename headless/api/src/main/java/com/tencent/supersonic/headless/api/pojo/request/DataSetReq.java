@@ -12,7 +12,7 @@ public class DataSetReq extends SchemaItem {
 
     private Long domainId;
 
-    private DataSetDetail dataSetDetail;
+    private DataSetDetail dataSetDetail = new DataSetDetail();
 
     private String alias;
 
@@ -35,5 +35,4 @@ public class DataSetReq extends SchemaItem {
         }
         return String.join(",", adminOrgs);
     }
-
 }

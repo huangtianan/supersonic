@@ -1,12 +1,13 @@
 package com.tencent.supersonic.common.util;
 
-import lombok.extern.slf4j.Slf4j;
-
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+
+import lombok.extern.slf4j.Slf4j;
+
 import java.security.MessageDigest;
 import java.security.spec.KeySpec;
 import java.util.Arrays;
@@ -20,7 +21,8 @@ public class AESEncryptionUtil {
     private static final String SECRET_KEY_ALGORITHM = "PBKDF2WithHmacSHA256";
     private static final int ITERATIONS = 65536;
     private static final int KEY_LENGTH = 256;
-    private static final String KEY = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+    private static final String KEY =
+            "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
     // TODO 固定IV，确保每次加密时使用相同的IV,该值应该安全保管
     private static final String IV = "supersonic@bicom";
 
@@ -73,7 +75,6 @@ public class AESEncryptionUtil {
 
             return new String(decryptedBytes, ENCODE);
         } catch (Exception e) {
-            log.warn("encryptStr decrypt failed:{}", encryptStr);
             return encryptStr;
         }
     }
@@ -91,12 +92,16 @@ public class AESEncryptionUtil {
         return Base64.getEncoder().encodeToString(combined);
     }
 
-    public static String aesEncryptECB(String content) throws Exception {
-        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        SecretKeySpec secretKeySpec = new SecretKeySpec(hexStringToByteArray(KEY), "AES");
-        cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
-        byte[] encryptEncode = cipher.doFinal(content.getBytes(ENCODE));
-        return getStringFromBytes(encryptEncode);
+    public static String aesEncryptECB(String content) {
+        try {
+            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(hexStringToByteArray(KEY), "AES");
+            cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
+            byte[] encryptEncode = cipher.doFinal(content.getBytes(ENCODE));
+            return getStringFromBytes(encryptEncode);
+        } catch (Exception e) {
+            return content;
+        }
     }
 
     public static String aesDecryptECB(String encryptStr) {
@@ -108,7 +113,6 @@ public class AESEncryptionUtil {
             byte[] decryptedBytes = cipher.doFinal(encryptBytes);
             return new String(decryptedBytes, ENCODE);
         } catch (Exception e) {
-            log.warn("encryptStr decrypt failed:{}", encryptStr);
             return encryptStr;
         }
     }
@@ -130,5 +134,4 @@ public class AESEncryptionUtil {
     public static byte[] getBytesFromString(String str) {
         return Base64.getDecoder().decode(str);
     }
-
 }

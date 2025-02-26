@@ -10,14 +10,15 @@ public class LLMResp {
 
     private String query;
 
-    private String modelName;
+    private String sideInfo;
 
-    private String dbSchema;
+    private String dataSet;
+
+    private String schema;
 
     private String sqlOutput;
 
     private List<String> fields;
 
     private Map<String, LLMSqlResp> sqlRespMap;
-
 }

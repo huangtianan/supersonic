@@ -9,7 +9,7 @@ import com.tencent.supersonic.headless.api.pojo.ItemValueConfig;
 import com.tencent.supersonic.headless.api.pojo.request.DictSingleTaskReq;
 import com.tencent.supersonic.headless.server.persistence.dataobject.DictConfDO;
 import com.tencent.supersonic.headless.server.persistence.mapper.DictConfMapper;
-import com.tencent.supersonic.headless.server.web.service.DictTaskService;
+import com.tencent.supersonic.headless.server.service.DictTaskService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-
 
 public class DictTest extends BaseTest {
     @Autowired
@@ -86,9 +85,9 @@ public class DictTest extends BaseTest {
         DictSingleTaskReq dictTask = DictSingleTaskReq.builder().itemId(confDODb.getItemId())
                 .type(TypeEnums.DIMENSION).build();
         taskService.addDictTask(dictTask, null);
-        DictSingleTaskReq taskReq = DictSingleTaskReq.builder().itemId(3L).type(TypeEnums.DIMENSION).build();
+        DictSingleTaskReq taskReq =
+                DictSingleTaskReq.builder().itemId(3L).type(TypeEnums.DIMENSION).build();
         taskService.deleteDictTask(taskReq, null);
         System.out.println();
     }
-
 }

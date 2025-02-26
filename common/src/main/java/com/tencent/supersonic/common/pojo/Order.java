@@ -1,11 +1,10 @@
 package com.tencent.supersonic.common.pojo;
 
-import static com.tencent.supersonic.common.pojo.Constants.ASC_UPPER;
-
 import com.google.common.base.Objects;
-import javax.validation.constraints.NotBlank;
-
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+
+import static com.tencent.supersonic.common.pojo.Constants.ASC_UPPER;
 
 @Data
 public class Order {
@@ -20,16 +19,13 @@ public class Order {
         this.direction = direction;
     }
 
-    public Order() {
-    }
+    public Order() {}
 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"column\":\"")
-                .append(column).append('\"');
-        sb.append(",\"direction\":\"")
-                .append(direction).append('\"');
+        sb.append("\"column\":\"").append(column).append('\"');
+        sb.append(",\"direction\":\"").append(direction).append('\"');
         sb.append('}');
         return sb.toString();
     }
@@ -43,8 +39,7 @@ public class Order {
             return false;
         }
         Order order = (Order) o;
-        return Objects.equal(column, order.column) && Objects.equal(direction,
-                order.direction);
+        return Objects.equal(column, order.column) && Objects.equal(direction, order.direction);
     }
 
     @Override

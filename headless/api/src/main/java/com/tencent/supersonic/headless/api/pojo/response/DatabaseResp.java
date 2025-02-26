@@ -2,6 +2,7 @@ package com.tencent.supersonic.headless.api.pojo.response;
 
 import com.google.common.collect.Lists;
 import com.tencent.supersonic.common.pojo.RecordInfo;
+import com.tencent.supersonic.common.util.AESEncryptionUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,7 +11,6 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 
 @Data
 @AllArgsConstructor
@@ -66,4 +66,7 @@ public class DatabaseResp extends RecordInfo {
         return "";
     }
 
+    public String passwordDecrypt() {
+        return AESEncryptionUtil.aesDecryptECB(password);
+    }
 }

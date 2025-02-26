@@ -8,7 +8,8 @@ import java.util.Map;
 
 public class ResultFormatter {
 
-    public static String transform2TextNew(List<QueryColumn> queryColumns, List<Map<String, Object>> queryResults) {
+    public static String transform2TextNew(List<QueryColumn> queryColumns,
+            List<Map<String, Object>> queryResults) {
         if (CollectionUtils.isEmpty(queryColumns)) {
             return "";
         }
@@ -27,7 +28,7 @@ public class ResultFormatter {
         }
         for (Map<String, Object> row : queryResults) {
             for (QueryColumn column : queryColumns) {
-                String columnKey = column.getNameEn();
+                String columnKey = column.getBizName();
                 Object value = row.get(columnKey);
                 table.append("| ").append(value != null ? value.toString() : "").append(" ");
             }
@@ -35,5 +36,4 @@ public class ResultFormatter {
         }
         return table.toString();
     }
-
 }

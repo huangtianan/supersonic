@@ -18,9 +18,10 @@ class EmbeddingStoreProperties {
     private IndexType indexType;
     private MetricType metricType;
     private String token;
-    private String username;
+    private String user;
     private String password;
     private ConsistencyLevelEnum consistencyLevel;
     private Boolean retrieveEmbeddingsOnSearch;
     private String databaseName;
+    private Boolean autoFlushOnInsert;
 }

@@ -3,15 +3,11 @@ package com.tencent.supersonic.headless.chat.corrector;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tencent.supersonic.common.pojo.Constants;
-import com.tencent.supersonic.headless.api.pojo.DataSetSchema;
-import com.tencent.supersonic.headless.api.pojo.QueryConfig;
-import com.tencent.supersonic.headless.api.pojo.SchemaElement;
-import com.tencent.supersonic.headless.api.pojo.SemanticParseInfo;
-import com.tencent.supersonic.headless.api.pojo.SemanticSchema;
-import com.tencent.supersonic.headless.api.pojo.SqlInfo;
+import com.tencent.supersonic.headless.api.pojo.*;
+import com.tencent.supersonic.headless.chat.ChatQueryContext;
 import com.tencent.supersonic.headless.chat.parser.llm.ParseResult;
-import com.tencent.supersonic.headless.chat.QueryContext;
 import com.tencent.supersonic.headless.chat.query.llm.s2sql.LLMReq;
+import com.tencent.supersonic.headless.chat.query.llm.s2sql.LLMSqlQuery;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
@@ -22,15 +18,9 @@ import java.util.Set;
 
 class SchemaCorrectorTest {
 
-    private String json = "{\n"
-            + "          \"dataSetId\":  1,\n"
-            + "          \"llmReq\":  {\n"
+    private String json = "{\n" + "          \"dataSetId\":  1,\n" + "          \"llmReq\":  {\n"
             + "                    \"queryText\":  \"xxx2024年播放量最高的十首歌\",\n"
-            + "                    \"filterCondition\":  {\n"
-            + "                              \"tableName\":  null\n"
-            + "                    },\n"
             + "                    \"schema\":  {\n"
-            + "                              \"domainName\":  \"歌曲\",\n"
             + "                              \"dataSetName\":  \"歌曲\",\n"
             + "                              \"fieldNameList\":  [\n"
             + "                                        \"商务组\",\n"
@@ -38,98 +28,95 @@ class SchemaCorrectorTest {
             + "                                        \"播放量\",\n"
             + "                                        \"播放份额\",\n"
             + "                                        \"数据日期\"\n"
-            + "                              ]\n"
-            + "                    },\n"
-            + "                    \"linking\":  [\n"
-            + "\n"
-            + "                    ],\n"
+            + "                              ]\n" + "                    },\n"
             + "                    \"currentDate\":  \"2024-02-24\",\n"
-            + "                    \"priorExts\":  \"播放份额是小数; \",\n"
             + "                    \"sqlGenType\":  \"1_pass_self_consistency\"\n"
-            + "          },\n"
-            + "          \"request\":  null,\n"
-            + "          \"linkingValues\":  [\n"
-            + "\n"
-            + "          ]\n"
-            + "}";
+            + "          },\n" + "          \"request\":  null\n" + "}";
 
     @Test
-    void doCorrect() throws JsonProcessingException {
-        Long dataSetId = 1L;
-        QueryContext queryContext = buildQueryContext(dataSetId);
+    void testCorrectWrongColumnName() {
+        String sql = "SELECT 歌曲 FROM 歌曲 WHERE 发行日期 >= '2024-01-01' ORDER BY SUM(播放) DESC LIMIT 10";
+        ChatQueryContext chatQueryContext = buildQueryContext(sql);
+        SemanticParseInfo parseInfo = chatQueryContext.getCandidateQueries().get(0).getParseInfo();
+
+        SchemaCorrector schemaCorrector = new SchemaCorrector();
+        schemaCorrector.correct(chatQueryContext, parseInfo);
+
+        Assert.assertEquals(
+                "SELECT 歌曲名 FROM 歌曲 WHERE 发行日期 >= '2024-01-01' ORDER BY SUM(播放量) DESC LIMIT 10",
+                parseInfo.getSqlInfo().getCorrectedS2SQL());
+    }
+
+    @Test
+    void testRemoveUnmappedFilterValue() throws JsonProcessingException {
+        String sql =
+                "SELECT 歌曲名 FROM 歌曲 WHERE 发行日期 >= '2024-01-01' AND 商务组 = 'xxx' ORDER BY 播放量 DESC LIMIT 10";
+        ChatQueryContext chatQueryContext = buildQueryContext(sql);
+        SemanticParseInfo parseInfo = chatQueryContext.getCandidateQueries().get(0).getParseInfo();
+
         ObjectMapper objectMapper = new ObjectMapper();
         ParseResult parseResult = objectMapper.readValue(json, ParseResult.class);
 
-
-        String sql = "select  歌曲名 from 歌曲 where 发行日期 >= '2024-01-01' "
-                + "and 商务组 = 'xxx' order by 播放量 desc  limit 10";
-        SemanticParseInfo semanticParseInfo = new SemanticParseInfo();
-        SqlInfo sqlInfo = new SqlInfo();
-        sqlInfo.setS2SQL(sql);
-        sqlInfo.setCorrectS2SQL(sql);
-        semanticParseInfo.setSqlInfo(sqlInfo);
-
-        SchemaElement schemaElement = new SchemaElement();
-        schemaElement.setDataSet(dataSetId);
-        semanticParseInfo.setDataSet(schemaElement);
-
-
-        semanticParseInfo.getProperties().put(Constants.CONTEXT, parseResult);
+        parseInfo.getProperties().put(Constants.CONTEXT, parseResult);
 
         SchemaCorrector schemaCorrector = new SchemaCorrector();
-        schemaCorrector.removeFilterIfNotInLinkingValue(queryContext, semanticParseInfo);
+        schemaCorrector.removeUnmappedFilterValue(chatQueryContext, parseInfo);
 
-        Assert.assertEquals("SELECT 歌曲名 FROM 歌曲 WHERE 发行日期 >= '2024-01-01' "
-                + "ORDER BY 播放量 DESC LIMIT 10", semanticParseInfo.getSqlInfo().getCorrectS2SQL());
-
-        parseResult = objectMapper.readValue(json, ParseResult.class);
+        Assert.assertEquals(
+                "SELECT 歌曲名 FROM 歌曲 WHERE 发行日期 >= '2024-01-01' ORDER BY 播放量 DESC LIMIT 10",
+                parseInfo.getSqlInfo().getCorrectedS2SQL());
 
         List<LLMReq.ElementValue> linkingValues = new ArrayList<>();
         LLMReq.ElementValue elementValue = new LLMReq.ElementValue();
         elementValue.setFieldName("商务组");
         elementValue.setFieldValue("xxx");
         linkingValues.add(elementValue);
-        parseResult.setLinkingValues(linkingValues);
-        semanticParseInfo.getProperties().put(Constants.CONTEXT, parseResult);
+        parseResult.getLlmReq().getSchema().setValues(linkingValues);
+        parseInfo.getProperties().put(Constants.CONTEXT, parseResult);
 
-        semanticParseInfo.getSqlInfo().setCorrectS2SQL(sql);
-        semanticParseInfo.getSqlInfo().setS2SQL(sql);
-        schemaCorrector.removeFilterIfNotInLinkingValue(queryContext, semanticParseInfo);
-        Assert.assertEquals("SELECT 歌曲名 FROM 歌曲 WHERE 发行日期 >= '2024-01-01' "
-                + "AND 商务组 = 'xxx' ORDER BY 播放量 DESC LIMIT 10", semanticParseInfo.getSqlInfo().getCorrectS2SQL());
-
+        parseInfo.getSqlInfo().setCorrectedS2SQL(sql);
+        parseInfo.getSqlInfo().setParsedS2SQL(sql);
+        schemaCorrector.removeUnmappedFilterValue(chatQueryContext, parseInfo);
+        Assert.assertEquals(
+                "SELECT 歌曲名 FROM 歌曲 WHERE 发行日期 >= '2024-01-01' "
+                        + "AND 商务组 = 'xxx' ORDER BY 播放量 DESC LIMIT 10",
+                parseInfo.getSqlInfo().getCorrectedS2SQL());
     }
 
-    private QueryContext buildQueryContext(Long dataSetId) {
-        QueryContext queryContext = new QueryContext();
+    private ChatQueryContext buildQueryContext(String sql) {
+        Long dataSetId = 1L;
+
+        ChatQueryContext chatQueryContext = new ChatQueryContext();
         List<DataSetSchema> dataSetSchemaList = new ArrayList<>();
         DataSetSchema dataSetSchema = new DataSetSchema();
         QueryConfig queryConfig = new QueryConfig();
         dataSetSchema.setQueryConfig(queryConfig);
         SchemaElement schemaElement = new SchemaElement();
-        schemaElement.setDataSet(dataSetId);
+        schemaElement.setDataSetId(dataSetId);
         dataSetSchema.setDataSet(schemaElement);
+
         Set<SchemaElement> dimensions = new HashSet<>();
-        SchemaElement element1 = new SchemaElement();
-        element1.setDataSet(1L);
-        element1.setName("歌曲名");
-        dimensions.add(element1);
-
-        SchemaElement element2 = new SchemaElement();
-        element2.setDataSet(1L);
-        element2.setName("商务组");
-        dimensions.add(element2);
-
-        SchemaElement element3 = new SchemaElement();
-        element3.setDataSet(1L);
-        element3.setName("发行日期");
-        dimensions.add(element3);
-
+        dimensions.add(SchemaElement.builder().name("歌曲名").dataSetId(dataSetId).build());
+        dimensions.add(SchemaElement.builder().name("商务组").dataSetId(dataSetId).build());
+        dimensions.add(SchemaElement.builder().name("发行日期").dataSetId(dataSetId).build());
+        dimensions.add(SchemaElement.builder().name("播放量").dataSetId(dataSetId).build());
         dataSetSchema.setDimensions(dimensions);
         dataSetSchemaList.add(dataSetSchema);
 
         SemanticSchema semanticSchema = new SemanticSchema(dataSetSchemaList);
-        queryContext.setSemanticSchema(semanticSchema);
-        return queryContext;
+        chatQueryContext.setSemanticSchema(semanticSchema);
+
+        SemanticParseInfo semanticParseInfo = new SemanticParseInfo();
+        SqlInfo sqlInfo = new SqlInfo();
+        sqlInfo.setParsedS2SQL(sql);
+        sqlInfo.setCorrectedS2SQL(sql);
+        semanticParseInfo.setSqlInfo(sqlInfo);
+        semanticParseInfo.setDataSet(dataSetSchema.getDataSet());
+        LLMSqlQuery sqlQuery = new LLMSqlQuery();
+        sqlQuery.setParseInfo(semanticParseInfo);
+        chatQueryContext.getCandidateQueries().add(sqlQuery);
+
+        return chatQueryContext;
     }
+
 }

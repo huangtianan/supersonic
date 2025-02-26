@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.tencent.supersonic</groupId>
-
     <artifactId>supersonic</artifactId>
     <packaging>pom</packaging>
     <version>${revision}</version>
+
     <modules>
         <module>auth</module>
         <module>chat</module>
@@ -22,43 +22,46 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.5.1</version>
+        <version>3.2.4</version>
     </parent>
 
     <properties>
-        <revision>0.9.2-SNAPSHOT</revision>
-        <java.source.version>1.8</java.source.version>
-        <java.target.version>1.8</java.target.version>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <revision>0.9.10-SNAPSHOT</revision>
+        <java.source.version>21</java.source.version>
+        <java.target.version>21</java.target.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <file.encoding>UTF-8</file.encoding>
         <jsqlparser.version>4.7</jsqlparser.version>
         <pagehelper.version>6.1.0</pagehelper.version>
         <pagehelper.spring.version>2.1.0</pagehelper.spring.version>
         <mybatis.version>3.5.3</mybatis.version>
-        <lombok.version>1.18.20</lombok.version>
         <guava.version>32.0.0-jre</guava.version>
         <hanlp.version>portable-1.8.3</hanlp.version>
         <hadoop.version>2.7.2</hadoop.version>
-        <jackson.version>2.11.2</jackson.version>
         <commons.lang.version>2.6</commons.lang.version>
         <commons.lang3.version>3.7</commons.lang3.version>
         <org.testng.version>6.13.1</org.testng.version>
         <yaml.utils.version>2.14.1</yaml.utils.version>
         <transmittable.thread.local.version>2.12.1</transmittable.thread.local.version>
         <jjwt.version>0.12.3</jjwt.version>
-        <alibaba.druid.version>1.2.3</alibaba.druid.version>
+        <alibaba.druid.version>1.2.24</alibaba.druid.version>
         <mysql.connector.java.version>5.1.46</mysql.connector.java.version>
+        <kyuubi.version>1.10.1</kyuubi.version>
+        <presto.version>0.291</presto.version>
+        <trino.version>471</trino.version>
         <mybatis.plus.version>3.5.7</mybatis.plus.version>
+        <httpclient5.version>5.4.1</httpclient5.version>
+<!--        <httpcore.version>4.4.16</httpcore.version>-->
+        <httpcore5.version>5.3.1</httpcore5.version>
         <clickhouse.jdbc.version>0.4.6</clickhouse.jdbc.version>
-        <h2.version>1.4.200</h2.version>
         <fastjson.version>2.0.40</fastjson.version>
         <dozer.verson>7.0.0</dozer.verson>
-        <httpmime.version>4.5.6</httpmime.version>
+<!--        <httpmime.version>4.5.6</httpmime.version>-->
         <transmittable.version>2.12.1</transmittable.version>
-        <commons.compress.version>1.21</commons.compress.version>
+        <commons.compress.version>1.26.0</commons.compress.version>
         <jetty.util.version>6.1.26</jetty.util.version>
-        <spring.version>2.5.1</spring.version>
+        <!--<spring.version>2.7.2</spring.version>-->
         <jsonpath.version>2.8.0</jsonpath.version>
         <calcite.version>1.37.0</calcite.version>
         <calcite.avatica.version>1.23.0</calcite.avatica.version>
@@ -66,14 +69,19 @@
         <mockito-inline.version>4.5.1</mockito-inline.version>
         <easyexcel.version>2.2.6</easyexcel.version>
         <poi.version>3.17</poi.version>
-        <langchain4j.version>0.31.0</langchain4j.version>
-        <postgresql.version>42.7.1</postgresql.version>
+        <langchain4j.version>0.35.0</langchain4j.version>
+        <langchain4j.embedding.version>0.27.1</langchain4j.embedding.version>
+<!--        <postgresql.version>42.7.1</postgresql.version>-->
         <st.version>4.0.8</st.version>
         <duckdb_jdbc.version>0.10.0</duckdb_jdbc.version>
         <flight-sql.version>15.0.2</flight-sql.version>
         <arrow-jdbc.version>15.0.2</arrow-jdbc.version>
         <flight-sql-jdbc-driver.version>15.0.2</flight-sql-jdbc-driver.version>
         <gson.version>2.10.1</gson.version>
+        <spotless.version>2.27.1</spotless.version>
+        <spotless.skip>false</spotless.skip>
+        <stax2.version>4.2.1</stax2.version>
+        <aws-java-sdk.version>1.12.780</aws-java-sdk.version>
     </properties>
 
     <dependencyManagement>
@@ -131,12 +139,12 @@
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-embeddings</artifactId>
-                <version>${langchain4j.version}</version>
+                <version>${langchain4j.embedding.version}</version>
             </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-embeddings-bge-small-zh</artifactId>
-                <version>${langchain4j.version}</version>
+                <version>${langchain4j.embedding.version}</version>
             </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
@@ -145,38 +153,8 @@
             </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-anthropic-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-ollama-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-azure-ai-search-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-azure-open-ai-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-embeddings-all-minilm-l6-v2-q</artifactId>
-                <version>${langchain4j.version}</version>
+                <version>${langchain4j.embedding.version}</version>
             </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
@@ -200,19 +178,63 @@
             </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-opensearch</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-pgvector</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-chatglm</artifactId>
                 <version>${langchain4j.version}</version>
             </dependency>
-            <!---langchain4j-->
             <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-autoconfigure-processor</artifactId>
-                <version>${spring.version}</version>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-ollama</artifactId>
+                <version>${langchain4j.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.google.code.gson</groupId>
                 <artifactId>gson</artifactId>
                 <version>${gson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.woodstox</groupId>
+                <artifactId>stax2-api</artifactId>
+                <version>${stax2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>${mysql.connector.java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kyuubi</groupId>
+                <artifactId>kyuubi-hive-jdbc</artifactId>
+                <version>${kyuubi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-jdbc</artifactId>
+                <version>${presto.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.trino</groupId>
+                <artifactId>trino-jdbc</artifactId>
+                <version>${trino.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-inline</artifactId>
+                <version>${mockito-inline.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-java-sdk</artifactId>
+                <version>${aws-java-sdk.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -263,8 +285,32 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-checkstyle-plugin</artifactId>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
+                <configuration>
+                    <skip>${spotless.skip}</skip>
+                    <java>
+                        <eclipse>
+                            <file>java-formatter.xml</file>
+                        </eclipse>
+                        <importOrder>
+                            <order>javax,java,scala,\#</order>
+                        </importOrder>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-apply-auto</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>apply</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${spotless.skip}</skip>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
         <pluginManagement>
@@ -276,33 +322,13 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>3.1.2</version>
-                    <dependencies>
-                        <dependency>
-                            <groupId>com.puppycrawl.tools</groupId>
-                            <artifactId>checkstyle</artifactId>
-                            <version>9.3</version>
-                        </dependency>
-                    </dependencies>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>2.22.2</version>
                     <configuration>
-                        <configLocation>checkstyle/checkstyle.xml</configLocation>
-                        <encoding>UTF-8</encoding>
-                        <consoleOutput>true</consoleOutput>
-                        <failsOnError>true</failsOnError>
-                        <linkXRef>false</linkXRef>
-                        <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                        <systemPropertyVariables>
+                            <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
+                        </systemPropertyVariables>
                     </configuration>
-                    <executions>
-                        <execution>
-                            <id>checkstyle-validation</id>
-                            <phase>validate</phase>
-                            <inherited>true</inherited>
-                            <goals>
-                                <goal>check</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>

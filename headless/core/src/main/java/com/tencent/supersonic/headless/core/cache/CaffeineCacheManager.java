@@ -1,6 +1,5 @@
 package com.tencent.supersonic.headless.core.cache;
 
-
 import com.github.benmanes.caffeine.cache.Cache;
 import com.google.common.base.Joiner;
 import lombok.extern.slf4j.Slf4j;
@@ -39,8 +38,9 @@ public class CaffeineCacheManager implements CacheManager {
         if (StringUtils.isEmpty(prefix)) {
             prefix = "-1";
         }
-        return Joiner.on(":").join(cacheCommonConfig.getCacheCommonApp(), cacheCommonConfig.getCacheCommonEnv(),
-                cacheCommonConfig.getCacheCommonVersion(), prefix, body);
+        return Joiner.on(":").join(cacheCommonConfig.getCacheCommonApp(),
+                cacheCommonConfig.getCacheCommonEnv(), cacheCommonConfig.getCacheCommonVersion(),
+                prefix, body);
     }
 
     @Override

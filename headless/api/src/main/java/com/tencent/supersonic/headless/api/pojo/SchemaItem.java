@@ -4,8 +4,7 @@ import com.google.common.base.Objects;
 import com.tencent.supersonic.common.pojo.RecordInfo;
 import com.tencent.supersonic.common.pojo.enums.SensitiveLevelEnum;
 import com.tencent.supersonic.common.pojo.enums.TypeEnums;
-import lombok.Data;
-import lombok.ToString;
+import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
@@ -17,19 +16,20 @@ import java.util.List;
 public class SchemaItem extends RecordInfo {
 
     private static String aliasSplit = ",";
-    private Long id;
 
-    private String name;
+    protected Long id;
 
-    private String bizName;
+    protected String name;
 
-    private String description;
+    protected String bizName;
 
-    private Integer status;
+    protected String description;
 
-    private TypeEnums typeEnum;
+    protected Integer status;
 
-    private Integer sensitiveLevel = SensitiveLevelEnum.LOW.getCode();
+    protected TypeEnums typeEnum;
+
+    protected Integer sensitiveLevel = SensitiveLevelEnum.LOW.getCode();
 
     @Override
     public boolean equals(Object o) {
@@ -41,8 +41,7 @@ public class SchemaItem extends RecordInfo {
         }
         SchemaItem that = (SchemaItem) o;
         return Objects.equal(id, that.id) && Objects.equal(name, that.name)
-                && Objects.equal(bizName, that.bizName)
-                && typeEnum == that.typeEnum;
+                && Objects.equal(bizName, that.bizName) && typeEnum == that.typeEnum;
     }
 
     @Override

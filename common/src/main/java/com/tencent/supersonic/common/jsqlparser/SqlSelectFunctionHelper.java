@@ -1,14 +1,6 @@
 package com.tencent.supersonic.common.jsqlparser;
 
 import com.tencent.supersonic.common.pojo.enums.AggOperatorEnum;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
@@ -21,19 +13,26 @@ import net.sf.jsqlparser.statement.select.SelectItem;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * Sql Parser Select function Helper
  */
 @Slf4j
 public class SqlSelectFunctionHelper {
 
-    public static List<String> aggregateFunctionName = Arrays.asList("SUM", "COUNT", "MAX", "MIN", "AVG");
+    public static List<String> aggregateFunctionName =
+            Arrays.asList("SUM", "COUNT", "MAX", "MIN", "AVG");
 
     public static boolean hasAggregateFunction(String sql) {
-        if (!CollectionUtils.isEmpty(getFunctions(sql))) {
-            return true;
-        }
-        return SqlSelectHelper.hasGroupBy(sql);
+        return !CollectionUtils.isEmpty(getFunctions(sql));
     }
 
     public static boolean hasFunction(String sql, String functionName) {
@@ -45,20 +44,25 @@ public class SqlSelectFunctionHelper {
     }
 
     public static Set<String> getFunctions(String sql) {
-        Select selectStatement = SqlSelectHelper.getSelect(sql);
-        if (!(selectStatement instanceof PlainSelect)) {
-            return new HashSet<>();
+        Set<Select> allSelect = SqlSelectHelper.getAllSelect(sql);
+        Set<String> result = new HashSet<>();
+        for (Select select : allSelect) {
+            if (!(select instanceof PlainSelect)) {
+                continue;
+            }
+            PlainSelect plainSelect = (PlainSelect) select;
+            List<SelectItem<?>> selectItems = plainSelect.getSelectItems();
+            FunctionVisitor visitor = new FunctionVisitor();
+            for (SelectItem selectItem : selectItems) {
+                selectItem.accept(visitor);
+            }
+            result.addAll(visitor.getFunctionNames());
         }
-        PlainSelect plainSelect = (PlainSelect) selectStatement;
-        List<SelectItem<?>> selectItems = plainSelect.getSelectItems();
-        FunctionVisitor visitor = new FunctionVisitor();
-        for (SelectItem selectItem : selectItems) {
-            selectItem.accept(visitor);
-        }
-        return visitor.getFunctionNames();
+        return result;
     }
 
-    public static Function getFunction(Expression expression, Map<String, String> fieldNameToAggregate) {
+    public static Function getFunction(Expression expression,
+            Map<String, String> fieldNameToAggregate) {
         if (!(expression instanceof Column)) {
             return null;
         }
@@ -99,8 +103,8 @@ public class SqlSelectFunctionHelper {
             FunctionVisitor visitor = new FunctionVisitor();
             expression.accept(visitor);
             Set<String> functions = visitor.getFunctionNames();
-            return functions.stream()
-                    .filter(t -> aggregateFunctionName.contains(t.toUpperCase())).collect(Collectors.toList());
+            return functions.stream().filter(t -> aggregateFunctionName.contains(t.toUpperCase()))
+                    .collect(Collectors.toList());
         }
         return new ArrayList<>();
     }
@@ -119,4 +123,3 @@ public class SqlSelectFunctionHelper {
         return false;
     }
 }
-

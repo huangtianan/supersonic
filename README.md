@@ -4,7 +4,7 @@
 
 # SuperSonic
 
-SuperSonic is the next-generation BI platform that integrates **Chat BI** (powered by LLM) and **Headless BI** (powered by semantic layer) paradigms. This integration ensures that Chat BI has access to the same curated and governed semantic data models as traditional BI. Furthermore, the implementation of both paradigms benefits from the integration: 
+SuperSonic is the next-generation AI+BI platform that unifies **Chat BI** (powered by LLM) and **Headless BI** (powered by semantic layer) paradigms. This unification ensures that Chat BI has access to the same curated and governed semantic data models as traditional BI. Furthermore, the implementation of both paradigms benefit from each other:
 
 - Chat BI's Text2SQL gets augmented with context-retrieval from semantic models.
 - Headless BI's query interface gets extended with natural language API.
@@ -46,9 +46,9 @@ The high-level architecture and main process flow is as follows:
 
 - **Schema Mapper:** identifies references to schema elements(metrics/dimensions/entities/values) in user queries. It matches the query text against the knowledge base.
 
-- **Semantic Parser:** understands user queries and generates semantic query statement. It consists of a combination of rule-based and model-based parsers, each of which deals with specific scenarios.
+- **Semantic Parser:** understands user queries and generates semantic query statement. It consists of a combination of rule-based and LLM-based parsers, each of which deals with specific scenarios.
 
-- **Semantic Corrector:** checks validity of semantic query statement and performs correction and optimization if needed.
+- **Semantic Corrector:** checks validity of semantic query statement and performs correction if necessary. It consists of a combination of rule-based and LLM-based correctors, each of which deals with specific scenarios.
 
 - **Semantic Translator:** converts semantic query statement into SQL statement that can be executed against physical data models.
 
@@ -59,6 +59,12 @@ The high-level architecture and main process flow is as follows:
 ## Quick Demo
 ### Online playground
 Visit http://117.72.46.148:9080 to register and experience as a new user. Please do not modify system configurations. We will restart to reset configurations regularly every weekend.
+
+### Docker Deployment
+- Install Docker and docker-compose.
+- Download the docker-compose.yml file; Execute: wget https://raw.githubusercontent.com/tencentmusic/supersonic/master/docker/docker-compose.yml.
+- Execute "docker-compose up -d".
+- Open a browser and visit http://localhost:9080 to start exploring.
 
 ### Local build
 SuperSonic comes with sample semantic models as well as chat conversations that can be used as a starting point. Please follow the steps: 
@@ -75,8 +81,4 @@ Please refer to project [Docs](https://supersonicbi.github.io/docs/%E7%B3%BB%E7%
 
 Please follow SuperSonic wechat official account:
 
-<img src="https://github.com/supersonicbi/supersonic-website/blob/main/static/img/supersonic_wechat_oa.png" height="50%" width="50%" /> 
-
-Welcome to join the WeChat community:
-
-<img src="https://github.com/supersonicbi/supersonic-website/blob/main/static/img/supersonic_wechat.png" height="50%" width="50%" /> 
+<img src="https://github.com/supersonicbi/supersonic-website/blob/main/static/img/supersonic_wechat_oa.png" height="50%" width="50%" />

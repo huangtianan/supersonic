@@ -10,17 +10,18 @@ import { useState } from 'react';
 
 type Props = {
   data: MsgDataType;
+  question: string;
   loading: boolean;
   onApplyAuth?: (model: string) => void;
 };
 
-const MetricCard: React.FC<Props> = ({ data, loading, onApplyAuth }) => {
+const MetricCard: React.FC<Props> = ({ data, question, loading, onApplyAuth }) => {
   const { queryMode, queryColumns, queryResults, entityInfo, aggregateInfo } = data;
 
   const { metricInfos } = aggregateInfo || {};
 
   const indicatorColumn = queryColumns?.find(column => column.showType === 'NUMBER');
-  const indicatorColumnName = indicatorColumn?.nameEn || '';
+  const indicatorColumnName = indicatorColumn?.bizName || '';
 
   const { dataFormatType, dataFormat } = indicatorColumn || {};
   const value = queryResults?.[0]?.[indicatorColumnName] || 0;
@@ -39,11 +40,7 @@ const MetricCard: React.FC<Props> = ({ data, loading, onApplyAuth }) => {
   return (
     <div className={matricCardClass}>
       <div className={`${prefixCls}-top-bar`}>
-        {indicatorColumn?.name ? (
-          <div className={`${prefixCls}-indicator-name`}>{indicatorColumn?.name}</div>
-        ) : (
-          <div style={{ height: 10 }} />
-        )}
+        <div className={`${prefixCls}-indicator-name`}>{question}</div>
       </div>
       <Spin spinning={loading}>
         <div className={`${prefixCls}-indicator`}>

@@ -1,15 +1,18 @@
 package com.tencent.supersonic.chat.api.pojo.request;
 
-
 import com.tencent.supersonic.chat.api.pojo.enums.MemoryReviewResult;
 import com.tencent.supersonic.chat.api.pojo.enums.MemoryStatus;
-import com.tencent.supersonic.common.pojo.RecordInfo;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
-
-import javax.validation.constraints.NotNull;
+import lombok.NoArgsConstructor;
 
 @Data
-public class ChatMemoryUpdateReq extends RecordInfo {
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ChatMemoryUpdateReq {
 
     @NotNull(message = "id不可为空")
     private Long id;
@@ -24,4 +27,7 @@ public class ChatMemoryUpdateReq extends RecordInfo {
 
     private String humanReviewCmt;
 
+    private MemoryReviewResult llmReviewRet;
+
+    private String llmReviewCmt;
 }

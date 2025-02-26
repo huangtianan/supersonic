@@ -26,5 +26,4 @@ public class SystemConfigController {
     public SystemConfig get() {
         return sysConfigService.getSystemConfig();
     }
-
 }

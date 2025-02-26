@@ -1,3 +1,6 @@
+import { Dayjs } from 'dayjs';
+import { ChatContextTypeQueryTypeEnum } from './constants';
+
 export type SearchRecommendItem = {
   complete: boolean;
   modelId: number;
@@ -73,14 +76,14 @@ export type EntityDimensionType = {
 };
 
 export type SqlInfoType = {
-  s2SQL: string;
-  correctS2SQL: string;
+  parsedS2SQL: string;
+  correctedS2SQL: string;
   querySQL: string;
 };
 
 export type ChatContextType = {
   id: number;
-  queryId: number;
+  queryId?: number;
   aggType: string;
   modelId: number;
   modelName: string;
@@ -93,7 +96,7 @@ export type ChatContextType = {
   elementMatches: any[];
   nativeQuery: boolean;
   queryMode: string;
-  queryType: 'METRIC' | 'METRIC_TAG' | 'ID' | 'DETAIL' | 'OTHER';
+  queryType: ChatContextTypeQueryTypeEnum;
   dimensionFilters: FilterItemType[];
   properties: any;
   sqlInfo: SqlInfoType;
@@ -145,6 +148,8 @@ export type MsgDataType = {
   similarQueries: SimilarQuestionType[];
   recommendedDimensions: DrillDownDimensionType[];
   textResult: string;
+  errorMsg: string;
+  textSummary: string;
 };
 
 export enum ParseStateEnum {
@@ -174,6 +179,7 @@ export type ColumnType = {
   authorized: boolean;
   name: string;
   nameEn: string;
+  bizName: string;
   showType: string;
   type: string;
   dataFormatType: string;
@@ -254,6 +260,9 @@ export type SimilarQuestionType = {
 };
 
 export type ParseTimeCostType = {
+  parseStartTime: number;
   parseTime: number;
   sqlTime: number;
 };
+
+export type RangeValue = [Dayjs, Dayjs];

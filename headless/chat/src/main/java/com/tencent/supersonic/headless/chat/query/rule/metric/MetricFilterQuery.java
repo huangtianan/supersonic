@@ -19,7 +19,6 @@ import static com.tencent.supersonic.headless.api.pojo.SchemaElementType.VALUE;
 import static com.tencent.supersonic.headless.chat.query.rule.QueryMatchOption.OptionType.REQUIRED;
 import static com.tencent.supersonic.headless.chat.query.rule.QueryMatchOption.RequireNumberType.AT_LEAST;
 
-
 @Slf4j
 @Component
 public class MetricFilterQuery extends MetricSemanticQuery {
@@ -46,8 +45,7 @@ public class MetricFilterQuery extends MetricSemanticQuery {
 
     protected boolean isMultiStructQuery() {
         Set<String> filterBizName = new HashSet<>();
-        parseInfo.getDimensionFilters().forEach(filter ->
-                filterBizName.add(filter.getBizName()));
+        parseInfo.getDimensionFilters().forEach(filter -> filterBizName.add(filter.getBizName()));
         return FilterType.UNION.equals(parseInfo.getFilterType()) && filterBizName.size() > 1;
     }
 
@@ -73,8 +71,9 @@ public class MetricFilterQuery extends MetricSemanticQuery {
             log.debug("addDimension before [{}]", queryStructReq.getGroups());
             List<Filter> filters = new ArrayList<>(queryStructReq.getDimensionFilters());
             if (onlyOperateInFilter) {
-                filters = filters.stream().filter(filter
-                        -> filter.getOperator().equals(FilterOperatorEnum.IN)).collect(Collectors.toList());
+                filters = filters.stream()
+                        .filter(filter -> filter.getOperator().equals(FilterOperatorEnum.IN))
+                        .collect(Collectors.toList());
             }
             filters.forEach(d -> {
                 if (!dimensions.contains(d.getBizName())) {
@@ -85,5 +84,4 @@ public class MetricFilterQuery extends MetricSemanticQuery {
             log.debug("addDimension after [{}]", queryStructReq.getGroups());
         }
     }
-
 }

@@ -2,8 +2,9 @@ package com.tencent.supersonic.headless.chat.query;
 
 import com.tencent.supersonic.headless.chat.query.llm.LLMSemanticQuery;
 import com.tencent.supersonic.headless.chat.query.rule.RuleSemanticQuery;
-import com.tencent.supersonic.headless.chat.query.rule.metric.MetricSemanticQuery;
 import com.tencent.supersonic.headless.chat.query.rule.detail.DetailSemanticQuery;
+import com.tencent.supersonic.headless.chat.query.rule.metric.MetricSemanticQuery;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,8 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class QueryManager {
 
-    private static Map<String, RuleSemanticQuery> ruleQueryMap = new ConcurrentHashMap<>();
-    private static Map<String, LLMSemanticQuery> llmQueryMap = new ConcurrentHashMap<>();
+    private final static Map<String, RuleSemanticQuery> ruleQueryMap = new ConcurrentHashMap<>();
+    private final static Map<String, LLMSemanticQuery> llmQueryMap = new ConcurrentHashMap<>();
 
     public static void register(SemanticQuery query) {
         if (query instanceof RuleSemanticQuery) {
@@ -28,7 +29,6 @@ public class QueryManager {
             return createRuleQuery(queryMode);
         }
         return createLLMQuery(queryMode);
-
     }
 
     public static RuleSemanticQuery createRuleQuery(String queryMode) {
@@ -66,22 +66,14 @@ public class QueryManager {
         return ruleQueryMap.get(queryMode) instanceof MetricSemanticQuery;
     }
 
-    public static boolean isTagQuery(String queryMode) {
+    public static boolean isDetailQuery(String queryMode) {
         if (queryMode == null || !ruleQueryMap.containsKey(queryMode)) {
             return false;
         }
         return ruleQueryMap.get(queryMode) instanceof DetailSemanticQuery;
     }
 
-    public static RuleSemanticQuery getRuleQuery(String queryMode) {
-        if (queryMode == null) {
-            return null;
-        }
-        return ruleQueryMap.get(queryMode);
-    }
-
     public static List<RuleSemanticQuery> getRuleQueries() {
         return new ArrayList<>(ruleQueryMap.values());
     }
-
 }

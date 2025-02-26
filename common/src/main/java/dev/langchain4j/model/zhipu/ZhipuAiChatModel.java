@@ -1,6 +1,5 @@
 package dev.langchain4j.model.zhipu;
 
-import dev.ai4j.openai4j.chat.ChatCompletionModel;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -27,8 +26,9 @@ import static dev.langchain4j.spi.ServiceHelper.loadFactories;
 import static java.util.Collections.singletonList;
 
 /**
- * Represents an ZhipuAi language model with a chat completion interface, such as glm-3-turbo and glm-4.
- * You can find description of parameters <a href="https://open.bigmodel.cn/dev/api">here</a>.
+ * Represents an ZhipuAi language model with a chat completion interface, such as glm-3-turbo and
+ * glm-4. You can find description of parameters
+ * <a href="https://open.bigmodel.cn/dev/api">here</a>.
  */
 public class ZhipuAiChatModel implements ChatLanguageModel {
 
@@ -41,33 +41,23 @@ public class ZhipuAiChatModel implements ChatLanguageModel {
     private final ZhipuAiClient client;
 
     @Builder
-    public ZhipuAiChatModel(
-            String baseUrl,
-            String apiKey,
-            Double temperature,
-            Double topP,
-            String model,
-            Integer maxRetries,
-            Integer maxToken,
-            Boolean logRequests,
-            Boolean logResponses
-    ) {
+    public ZhipuAiChatModel(String baseUrl, String apiKey, Double temperature, Double topP,
+            String model, Integer maxRetries, Integer maxToken, Boolean logRequests,
+            Boolean logResponses) {
         this.baseUrl = getOrDefault(baseUrl, "https://open.bigmodel.cn/");
         this.temperature = getOrDefault(temperature, 0.7);
         this.topP = topP;
-        this.model = getOrDefault(model, ChatCompletionModel.GPT_4.toString());
+        this.model = getOrDefault(model, ChatCompletionModel.GLM_4.toString());
         this.maxRetries = getOrDefault(maxRetries, 3);
         this.maxToken = getOrDefault(maxToken, 512);
-        this.client = ZhipuAiClient.builder()
-                .baseUrl(this.baseUrl)
-                .apiKey(apiKey)
+        this.client = ZhipuAiClient.builder().baseUrl(this.baseUrl).apiKey(apiKey)
                 .logRequests(getOrDefault(logRequests, false))
-                .logResponses(getOrDefault(logResponses, false))
-                .build();
+                .logResponses(getOrDefault(logResponses, false)).build();
     }
 
     public static ZhipuAiChatModelBuilder builder() {
-        for (ZhipuAiChatModelBuilderFactory factories : loadFactories(ZhipuAiChatModelBuilderFactory.class)) {
+        for (ZhipuAiChatModelBuilderFactory factories : loadFactories(
+                ZhipuAiChatModelBuilderFactory.class)) {
             return factories.get();
         }
         return new ZhipuAiChatModelBuilder();
@@ -79,36 +69,32 @@ public class ZhipuAiChatModel implements ChatLanguageModel {
     }
 
     @Override
-    public Response<AiMessage> generate(List<ChatMessage> messages, List<ToolSpecification> toolSpecifications) {
+    public Response<AiMessage> generate(List<ChatMessage> messages,
+            List<ToolSpecification> toolSpecifications) {
         ensureNotEmpty(messages, "messages");
 
-        ChatCompletionRequest.Builder requestBuilder = ChatCompletionRequest.builder()
-                .model(this.model)
-                .maxTokens(maxToken)
-                .stream(false)
-                .topP(topP)
-                .toolChoice(AUTO)
-                .messages(toZhipuAiMessages(messages));
+        ChatCompletionRequest.Builder requestBuilder =
+                ChatCompletionRequest.builder().model(this.model).maxTokens(maxToken).stream(false)
+                        .topP(topP).toolChoice(AUTO).messages(toZhipuAiMessages(messages));
 
         if (!isNullOrEmpty(toolSpecifications)) {
             requestBuilder.tools(toTools(toolSpecifications));
         }
 
-        ChatCompletionResponse response = withRetry(() -> client.chatCompletion(requestBuilder.build()), maxRetries);
-        return Response.from(
-                aiMessageFrom(response),
-                tokenUsageFrom(response.getUsage()),
-                finishReasonFrom(response.getChoices().get(0).getFinishReason())
-        );
+        ChatCompletionResponse response =
+                withRetry(() -> client.chatCompletion(requestBuilder.build()), maxRetries);
+        return Response.from(aiMessageFrom(response), tokenUsageFrom(response.getUsage()),
+                finishReasonFrom(response.getChoices().get(0).getFinishReason()));
     }
 
     @Override
-    public Response<AiMessage> generate(List<ChatMessage> messages, ToolSpecification toolSpecification) {
-        return generate(messages, toolSpecification != null ? singletonList(toolSpecification) : null);
+    public Response<AiMessage> generate(List<ChatMessage> messages,
+            ToolSpecification toolSpecification) {
+        return generate(messages,
+                toolSpecification != null ? singletonList(toolSpecification) : null);
     }
 
     public static class ZhipuAiChatModelBuilder {
-        public ZhipuAiChatModelBuilder() {
-        }
+        public ZhipuAiChatModelBuilder() {}
     }
 }

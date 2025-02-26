@@ -1,11 +1,11 @@
 package com.tencent.supersonic.headless.server.pojo.yaml;
 
-
 import com.tencent.supersonic.common.pojo.enums.DataTypeEnums;
-import java.util.List;
-import java.util.Map;
+import com.tencent.supersonic.headless.api.pojo.DimensionTimeTypeParams;
 import lombok.Data;
 
+import java.util.List;
+import java.util.Map;
 
 @Data
 public class DimensionYamlTpl {
@@ -20,7 +20,7 @@ public class DimensionYamlTpl {
 
     private String expr;
 
-    private DimensionTimeTypeParamsTpl typeParams;
+    private DimensionTimeTypeParams typeParams;
 
     private DataTypeEnums dataType;
 

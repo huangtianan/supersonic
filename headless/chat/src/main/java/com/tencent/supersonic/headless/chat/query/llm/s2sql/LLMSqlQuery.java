@@ -1,10 +1,7 @@
 package com.tencent.supersonic.headless.chat.query.llm.s2sql;
 
-import com.tencent.supersonic.auth.api.authentication.pojo.User;
-import com.tencent.supersonic.headless.api.pojo.SemanticSchema;
+import com.tencent.supersonic.headless.api.pojo.DataSetSchema;
 import com.tencent.supersonic.headless.api.pojo.SqlInfo;
-import com.tencent.supersonic.headless.api.pojo.request.SemanticQueryReq;
-import com.tencent.supersonic.headless.chat.utils.QueryReqBuilder;
 import com.tencent.supersonic.headless.chat.query.QueryManager;
 import com.tencent.supersonic.headless.chat.query.llm.LLMSemanticQuery;
 import lombok.extern.slf4j.Slf4j;
@@ -26,13 +23,8 @@ public class LLMSqlQuery extends LLMSemanticQuery {
     }
 
     @Override
-    public SemanticQueryReq buildSemanticQueryReq() {
-        return QueryReqBuilder.buildS2SQLReq(parseInfo.getSqlInfo(), parseInfo.getDataSetId());
-    }
-
-    @Override
-    public void initS2Sql(SemanticSchema semanticSchema, User user) {
+    public void buildS2Sql(DataSetSchema dataSetSchema) {
         SqlInfo sqlInfo = parseInfo.getSqlInfo();
-        sqlInfo.setCorrectS2SQL(sqlInfo.getS2SQL());
+        sqlInfo.setCorrectedS2SQL(sqlInfo.getParsedS2SQL());
     }
 }

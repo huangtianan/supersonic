@@ -1,26 +1,17 @@
-import {
-  Form,
-  Modal,
-  Input,
-  Button,
-  Switch,
-  Tabs,
-  Slider,
-  InputNumber,
-  Select,
-  Row,
-  message,
-  Space,
-} from 'antd';
-import { AgentType } from './type';
+import { Form, Input, Button, Switch, Tabs, Select, message, Space, Tooltip } from 'antd';
+import MainTitleMark from '@/components/MainTitleMark';
+import { AgentType, ChatAppConfig } from './type';
 import { useEffect, useState } from 'react';
 import styles from './style.less';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { uuid, jsonParse, encryptPassword, decryptPassword } from '@/utils/utils';
+import { uuid, jsonParse } from '@/utils/utils';
 import ToolsSection from './ToolsSection';
 import globalStyles from '@/global.less';
-import { testLLMConn } from './service';
+import { QuestionCircleOutlined } from '@ant-design/icons';
+import SelectTMEPerson from '@/components/SelectTMEPerson';
+import { getLlmModelAppList, getLlmList } from '../../services/system';
 import MemorySection from './MemorySection';
+import PermissionSection from './PermissionSection';
 
 const FormItem = Form.Item;
 const { TextArea } = Input;
@@ -40,15 +31,20 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
   const [saveLoading, setSaveLoading] = useState(false);
   const [examples, setExamples] = useState<{ id: string; question?: string }[]>([]);
   const [activeKey, setActiveKey] = useState('basic');
-  const [llmTestLoading, setLlmTestLoading] = useState<boolean>(false);
+  const [modelTypeOptions, setModelTypeOptions] = useState<
+    (OptionsItem & { enable: boolean; prompt: string; description: string })[]
+  >([]);
+  const [llmConfigListOptions, setLlmConfigListOptions] = useState<OptionsItem[]>([]);
+  const [currentChatModel, setCurrentChatModel] = useState<string>('');
+  const [defaultChatAppConfig, setDefaultChatAppConfig] = useState<ChatAppConfig>({});
   const [formData, setFormData] = useState<any>({
     enableSearch: true,
-    llmConfig: {
+    modelConfig: {
       timeOut: 60,
       provider: 'OPEN_AI',
       temperature: 0,
     },
-    agentConfig: {
+    toolConfig: {
       ...defaultAgentConfig,
     },
   });
@@ -56,17 +52,14 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
 
   useEffect(() => {
     if (editAgent) {
-      const sourceData = { ...editAgent };
-      if (!sourceData.llmConfig) {
-        delete sourceData.llmConfig;
-      }
-
-      const config = jsonParse(editAgent.agentConfig, {});
+      const config = jsonParse(editAgent.toolConfig, {});
       const initData = {
-        ...sourceData,
+        ...editAgent,
         enableSearch: editAgent.enableSearch !== 0,
-        agentConfig: { ...defaultAgentConfig, ...config },
+        enableFeedback: editAgent.enableFeedback !== 0,
+        toolConfig: { ...defaultAgentConfig, ...config },
       };
+
       form.setFieldsValue(initData);
       setFormData(initData);
       if (editAgent.examples) {
@@ -75,43 +68,113 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
     } else {
       form.resetFields();
     }
+    queryModelTypeList(editAgent?.chatAppConfig);
+    queryLlmList();
   }, [editAgent]);
 
+  const queryLlmList = async () => {
+    const { code, data } = await getLlmList();
+    if (code === 200 && data) {
+      const options = data.map((item) => {
+        return {
+          label: item.name,
+          value: item.id,
+        };
+      });
+      setLlmConfigListOptions(options);
+    } else {
+      message.error('获取模型场景类型失败');
+    }
+  };
+  const queryModelTypeList = async (currentAgentChatConfig: any = {}) => {
+    const { code, data } = await getLlmModelAppList();
+    if (code === 200 && data) {
+      let options = Object.keys(data).map((key: string) => {
+        let config = data[key];
+        if (currentAgentChatConfig[key]) {
+          config = currentAgentChatConfig[key];
+        }
+        return {
+          label: config.name,
+          value: key,
+          enable: config.enable,
+          description: config.description,
+          prompt: config.prompt,
+        };
+      });
+      const sqlParserIndex = options.findIndex((item) => item.value === 'S2SQL_PARSER');
+      if (sqlParserIndex >= 0) {
+        options.splice(0, 0, options.splice(sqlParserIndex, 1)[0]);
+      }
+      const firstOption = options[0];
+      if (firstOption) {
+        setCurrentChatModel(firstOption.value);
+      }
+      const initChatModelConfig = Object.keys(data).reduce(
+        (modelConfig: ChatAppConfig, key: string) => {
+          let config = data[key];
+          if (currentAgentChatConfig[key]) {
+            config = currentAgentChatConfig[key];
+          }
+          return {
+            ...modelConfig,
+            [key]: config,
+          };
+        },
+        {},
+      );
+      setDefaultChatAppConfig(initChatModelConfig);
+      const formData = form.getFieldsValue();
+      form.setFieldsValue({
+        ...formData,
+        chatAppConfig: initChatModelConfig,
+      });
+      setModelTypeOptions(options);
+    } else {
+      message.error('获取模型场景类型失败');
+    }
+  };
+
   const layout = {
-    labelCol: { span: 4 },
+    labelCol: { span: 8 },
     wrapperCol: { span: 16 },
-    // layout: 'vertical',
   };
 
   const onOk = async () => {
     const values = await form.validateFields();
     setSaveLoading(true);
-    const config = jsonParse(editAgent?.agentConfig, {});
+    const config = jsonParse(editAgent?.toolConfig, {});
     await onSaveAgent?.({
       id: editAgent?.id,
       ...(editAgent || {}),
       ...values,
-      agentConfig: JSON.stringify({
+      toolConfig: JSON.stringify({
         ...config,
-        ...values.agentConfig,
-        debugMode: values.agentConfig?.simpleMode === true ? false : values.agentConfig?.debugMode,
+        ...values.toolConfig,
+        debugMode: values.toolConfig?.simpleMode === true ? false : values.toolConfig?.debugMode,
       }) as any,
       examples: examples.map((example) => example.question),
       enableSearch: values.enableSearch ? 1 : 0,
+      enableFeedback: values.enableFeedback ? 1 : 0,
+      chatAppConfig: Object.keys(defaultChatAppConfig).reduce((mergeConfig, key) => {
+        return {
+          ...mergeConfig,
+          [key]: {
+            ...defaultChatAppConfig[key],
+            ...(values.chatAppConfig?.[key] ? values.chatAppConfig[key] : {}),
+          },
+        };
+      }, {}),
     });
     setSaveLoading(false);
   };
 
-  const testLLMConnect = async (params: any) => {
-    setLlmTestLoading(true);
-    const { code, msg, data } = await testLLMConn(params);
-    setLlmTestLoading(false);
-    if (code === 200 && data) {
-      message.success('连接成功');
-    } else {
-      message.error(msg);
-    }
-  };
+  const tips = [
+    '自定义提示词模板可嵌入以下变量，将由系统自动进行替换：',
+    '-{{exemplar}} :替换成few-shot示例，示例个数由系统配置',
+    '-{{question}} :替换成用户问题，拼接了一定的补充信息',
+    '-{{schema}} :替换成数据语义信息，根据用户问题映射而来',
+  ];
 
   const formTabList = [
     {
@@ -126,55 +189,41 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
           >
             <Input placeholder="请输入助理名称" />
           </FormItem>
-          {/* <FormItem name={['visualConfig', 'defaultShowType']} label="问答默认格式">
-            <Select
-              placeholder=""
-              options={[
-                {
-                  label: '文本',
-                  value: 'TEXT',
-                },
-                {
-                  label: '表格',
-                  value: 'TABLE',
-                },
-                {
-                  label: '图表',
-                  value: 'WIDGET',
-                },
-              ]}
-            />
-          </FormItem> */}
-          <FormItem name="enableSearch" label="支持联想" valuePropName="checked">
+          <FormItem name="enableSearch" label="开启输入联想" valuePropName="checked" htmlFor="">
+            <Switch />
+          </FormItem>
+          <FormItem name="enableFeedback" label="开启用户确认" valuePropName="checked" htmlFor="">
             <Switch />
           </FormItem>
           <FormItem
-            name={['multiTurnConfig', 'enableMultiTurn']}
-            label="开启多轮"
-            valuePropName="checked"
-          >
-            <Switch />
-          </FormItem>
-
-          <FormItem
-            name={['agentConfig', 'simpleMode']}
+            name={['toolConfig', 'simpleMode']}
             label="开启精简模式"
             tooltip="精简模式下不可调整查询条件、不显示调试信息、不显示可视化组件"
             valuePropName="checked"
+            htmlFor=""
           >
             <Switch />
           </FormItem>
-
           <FormItem
-            name={['agentConfig', 'debugMode']}
-            label="显示调试信息"
-            hidden={formData?.agentConfig?.simpleMode === true}
+            name={['toolConfig', 'debugMode']}
+            label="开启调试信息"
+            hidden={formData?.toolConfig?.simpleMode === true}
             tooltip="包含Schema映射、SQL生成每阶段的关键信息"
             valuePropName="checked"
+            htmlFor=""
           >
             <Switch />
           </FormItem>
-
+          <FormItem
+            name="admins"
+            label="管理员"
+            // rules={[{ required: true, message: '请设定数据库连接管理者' }]}
+          >
+            <SelectTMEPerson placeholder="请邀请团队成员" />
+          </FormItem>
+          <FormItem tooltip="选择用户后，该助理只对所选用户可见" name="viewers" label="使用者">
+            <SelectTMEPerson placeholder="请邀请团队成员" />
+          </FormItem>
           <FormItem name="examples" label="示例问题">
             <div className={styles.paramsSection}>
               {examples.map((example) => {
@@ -217,60 +266,89 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
     },
     {
       label: '大模型配置',
-      key: 'llmConfig',
+      key: 'modelConfig',
       children: (
-        <div className={styles.agentFormContainer}>
-          <FormItem name={['llmConfig', 'provider']} label="接口协议">
-            <Select placeholder="">
-              {['OPEN_AI', 'OLLAMA'].map((item) => (
-                <Select.Option key={item} value={item}>
-                  {item}
-                </Select.Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem name={['llmConfig', 'modelName']} label="Model Name">
-            <Input placeholder="请输入大模型名称" />
-          </FormItem>
-          <FormItem name={['llmConfig', 'baseUrl']} label="Base URL">
-            <Input placeholder="请输入Base URL" />
-          </FormItem>
-          <FormItem
-            name={['llmConfig', 'apiKey']}
-            label="API Key"
-            hidden={formData?.llmConfig?.provider === 'OLLAMA'}
-            getValueFromEvent={(event) => {
-              const value = event.target.value;
-              return encryptPassword(value);
-            }}
-            getValueProps={(value) => {
-              return {
-                value: value ? decryptPassword(value) : '',
-              };
-            }}
-          >
-            <Input.Password placeholder="请输入API Key" visibilityToggle />
-          </FormItem>
-
-          <FormItem name={['llmConfig', 'temperature']} label="Temperature">
-            <Slider
-              min={0}
-              max={1}
-              step={0.1}
-              marks={{
-                0: '精准',
-                1: '随机',
-              }}
-            />
-          </FormItem>
-          <FormItem name={['llmConfig', 'timeOut']} label="超时时间(秒)">
-            <InputNumber />
-          </FormItem>
+        <div className={styles.agentFormContainer} style={{ width: '1200px', marginTop: 20 }}>
+          <div className={styles.agentFormTitle}>
+            <Space>
+              应用场景 <MainTitleMark />
+            </Space>
+          </div>
+          <Space style={{ alignItems: 'start' }}>
+            <div style={{ width: 350 }}>
+              {modelTypeOptions.map((item) => {
+                return (
+                  <div
+                    className={`${styles.agentChatModelCell} ${
+                      currentChatModel === item.value ? styles.agentChatModelCellActive : ''
+                    }`}
+                    onClick={() => {
+                      setCurrentChatModel(item.value);
+                    }}
+                  >
+                    <FormItem
+                      name={['chatAppConfig', item.value, 'enable']}
+                      label={item.label}
+                      valuePropName="checked"
+                      tooltip={item.description}
+                      htmlFor=""
+                    >
+                      <Switch />
+                    </FormItem>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ width: 900 }}>
+              {modelTypeOptions.map((item) => {
+                return (
+                  <div
+                    key={`setting-${item.value}`}
+                    style={{
+                      display: currentChatModel === item.value ? 'block' : 'none',
+                    }}
+                  >
+                    <FormItem
+                      name={['chatAppConfig', item.value, 'chatModelId']}
+                      label="应用模型"
+                      tooltip={item.description}
+                    >
+                      <Select placeholder="" options={llmConfigListOptions} />
+                    </FormItem>
+                    <FormItem
+                      name={['chatAppConfig', item.value, 'prompt']}
+                      label={
+                        <>
+                          <Space>
+                            提示词模板
+                            <Tooltip
+                              overlayInnerStyle={{ width: 400 }}
+                              title={
+                                <>
+                                  {tips.map((tip) => (
+                                    <div>{tip}</div>
+                                  ))}
+                                </>
+                              }
+                            >
+                              <QuestionCircleOutlined />
+                            </Tooltip>
+                          </Space>
+                        </>
+                      }
+                    >
+                      <Input.TextArea style={{ minHeight: 600 }} />
+                    </FormItem>
+                  </div>
+                );
+              })}
+            </div>
+          </Space>
         </div>
       ),
     },
     {
-      label: '工具管理',
+      label: '工具配置',
       key: 'tools',
       children: <ToolsSection currentAgent={editAgent} onSaveAgent={onSaveAgent} />,
     },
@@ -278,6 +356,11 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
       label: '记忆管理',
       key: 'memory',
       children: <MemorySection agentId={editAgent?.id} />,
+    },
+    {
+      label: '权限管理',
+      key: 'permissonSetting',
+      children: <PermissionSection currentAgent={editAgent} onSaveAgent={onSaveAgent} />,
     },
   ];
 
@@ -294,7 +377,7 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
       <Tabs
         tabBarExtraContent={
           <Space>
-            {activeKey !== 'memory' && (
+            {activeKey !== 'memory' && activeKey !== 'permissonSetting' && (
               <Button
                 type="primary"
                 loading={saveLoading}
@@ -313,17 +396,6 @@ const AgentForm: React.FC<Props> = ({ editAgent, onSaveAgent, onCreateToolBtnCli
                 }}
               >
                 <PlusOutlined /> 新增工具
-              </Button>
-            )}
-            {activeKey === 'llmConfig' && (
-              <Button
-                type="primary"
-                loading={llmTestLoading}
-                onClick={() => {
-                  testLLMConnect(formData.llmConfig);
-                }}
-              >
-                大模型连接测试
               </Button>
             )}
           </Space>

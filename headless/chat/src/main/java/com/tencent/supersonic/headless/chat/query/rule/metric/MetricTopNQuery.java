@@ -2,11 +2,9 @@ package com.tencent.supersonic.headless.chat.query.rule.metric;
 
 import com.tencent.supersonic.common.pojo.Constants;
 import com.tencent.supersonic.common.pojo.Order;
-import com.tencent.supersonic.common.pojo.enums.AggregateTypeEnum;
 import com.tencent.supersonic.headless.api.pojo.SchemaElement;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementMatch;
-import com.tencent.supersonic.headless.chat.QueryContext;
-import com.tencent.supersonic.headless.chat.ChatContext;
+import com.tencent.supersonic.headless.chat.ChatQueryContext;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -24,7 +22,6 @@ import static com.tencent.supersonic.headless.chat.query.rule.QueryMatchOption.R
 public class MetricTopNQuery extends MetricSemanticQuery {
 
     public static final String QUERY_MODE = "METRIC_ORDERBY";
-    private static final Long ORDERBY_MAX_RESULTS = 3L;
     private static final Pattern INTENT_PATTERN = Pattern.compile("(.*)(最大|最高|最多)(.*)");
 
     public MetricTopNQuery() {
@@ -36,8 +33,8 @@ public class MetricTopNQuery extends MetricSemanticQuery {
 
     @Override
     public List<SchemaElementMatch> match(List<SchemaElementMatch> candidateElementMatches,
-                                          QueryContext queryCtx) {
-        Matcher matcher = INTENT_PATTERN.matcher(queryCtx.getQueryText());
+            ChatQueryContext queryCtx) {
+        Matcher matcher = INTENT_PATTERN.matcher(queryCtx.getRequest().getQueryText());
         if (matcher.matches()) {
             return super.match(candidateElementMatches, queryCtx);
         }
@@ -50,15 +47,11 @@ public class MetricTopNQuery extends MetricSemanticQuery {
     }
 
     @Override
-    public void fillParseInfo(QueryContext queryContext, ChatContext chatContext) {
-        super.fillParseInfo(queryContext, chatContext);
+    public void fillParseInfo(ChatQueryContext chatQueryContext, Long dataSetId) {
+        super.fillParseInfo(chatQueryContext, dataSetId);
 
-        parseInfo.setLimit(ORDERBY_MAX_RESULTS);
         parseInfo.setScore(parseInfo.getScore() + 2.0);
-        parseInfo.setAggType(AggregateTypeEnum.SUM);
-
         SchemaElement metric = parseInfo.getMetrics().iterator().next();
         parseInfo.getOrders().add(new Order(metric.getBizName(), Constants.DESC_UPPER));
     }
-
 }

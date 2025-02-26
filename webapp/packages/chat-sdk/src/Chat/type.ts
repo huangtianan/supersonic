@@ -17,6 +17,7 @@ export type MessageItem = {
   id: string | number;
   type?: MessageTypeEnum;
   msg?: string;
+  questionId?: number;
   msgValue?: string;
   identityMsg?: string;
   modelId?: number;
@@ -89,8 +90,9 @@ export type AgentType = {
   createdAt: string;
   updatedAt: string;
   enableSearch: number;
-  agentConfig: string;
-  llmConfig: {
+  enableFeedback: number;
+  toolConfig: string;
+  modelConfig: {
     provider: string;
     baseUrl: string;
     apiKey: string;

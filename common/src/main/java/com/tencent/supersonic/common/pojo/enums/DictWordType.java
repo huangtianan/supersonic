@@ -1,14 +1,11 @@
 package com.tencent.supersonic.common.pojo.enums;
 
 import org.apache.commons.lang3.StringUtils;
+
 import java.util.Objects;
 
-/***
- * nature type
- * such as : metric、dimension etc.
- */
+/** * nature type such as : metric、dimension etc. */
 public enum DictWordType {
-
     METRIC("metric"),
 
     DIMENSION("dimension"),
@@ -16,8 +13,6 @@ public enum DictWordType {
     VALUE("value"),
 
     DATASET("dataSet"),
-
-    ENTITY("entity"),
 
     NUMBER("m"),
 
@@ -48,13 +43,14 @@ public enum DictWordType {
                 return dictWordType;
             }
         }
-        //dataSet
+        // dataSet
         String[] natures = nature.split(DictWordType.NATURE_SPILT);
         if (natures.length == 2 && StringUtils.isNumeric(natures[1])) {
             return DATASET;
         }
-        //dimension value
-        if (natures.length == 3 && StringUtils.isNumeric(natures[1]) && StringUtils.isNumeric(natures[2])) {
+        // dimension value
+        if (natures.length == 3 && StringUtils.isNumeric(natures[1])
+                && StringUtils.isNumeric(natures[2])) {
             return VALUE;
         }
         return null;
@@ -76,5 +72,4 @@ public enum DictWordType {
         }
         return "";
     }
-
 }

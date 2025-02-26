@@ -1,6 +1,6 @@
 package com.tencent.supersonic.headless.server.task;
 
-import com.tencent.supersonic.headless.server.web.service.impl.DictWordService;
+import com.tencent.supersonic.headless.server.service.impl.DictWordService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -31,9 +31,7 @@ public class DictionaryReloadTask implements CommandLineRunner {
         }
     }
 
-    /***
-     * reload knowledge task
-     */
+    /** * reload knowledge task */
     @Scheduled(cron = "${reload.knowledge.corn:0 0/1 * * * ?}")
     public void reloadKnowledge() {
         log.debug("reloadKnowledge start");

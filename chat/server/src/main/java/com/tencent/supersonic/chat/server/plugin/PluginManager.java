@@ -11,8 +11,9 @@ import com.tencent.supersonic.chat.server.plugin.build.WebBase;
 import com.tencent.supersonic.chat.server.plugin.event.PluginAddEvent;
 import com.tencent.supersonic.chat.server.plugin.event.PluginDelEvent;
 import com.tencent.supersonic.chat.server.plugin.event.PluginUpdateEvent;
-import com.tencent.supersonic.chat.server.pojo.ChatParseContext;
+import com.tencent.supersonic.chat.server.pojo.ParseContext;
 import com.tencent.supersonic.chat.server.service.PluginService;
+import com.tencent.supersonic.chat.server.util.QueryReqConverter;
 import com.tencent.supersonic.common.config.EmbeddingConfig;
 import com.tencent.supersonic.common.service.EmbeddingService;
 import com.tencent.supersonic.common.util.ContextUtils;
@@ -20,6 +21,8 @@ import com.tencent.supersonic.headless.api.pojo.SchemaElement;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementMatch;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementType;
 import com.tencent.supersonic.headless.api.pojo.SchemaMapInfo;
+import com.tencent.supersonic.headless.api.pojo.request.QueryNLReq;
+import com.tencent.supersonic.headless.server.facade.service.ChatLayerService;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.Retrieval;
 import dev.langchain4j.store.embedding.RetrieveQuery;
@@ -52,9 +55,9 @@ public class PluginManager {
     @Autowired
     private EmbeddingService embeddingService;
 
-    public static List<ChatPlugin> getPluginAgentCanSupport(ChatParseContext chatParseContext) {
+    public static List<ChatPlugin> getPluginAgentCanSupport(ParseContext parseContext) {
         PluginService pluginService = ContextUtils.getBean(PluginService.class);
-        Agent agent = chatParseContext.getAgent();
+        Agent agent = parseContext.getAgent();
         List<ChatPlugin> plugins = pluginService.getPluginList();
         if (Objects.isNull(agent)) {
             return plugins;
@@ -137,17 +140,17 @@ public class PluginManager {
     public RetrieveQueryResult recognize(String embeddingText) {
 
         RetrieveQuery retrieveQuery = RetrieveQuery.builder()
-                .queryTextsList(Collections.singletonList(embeddingText))
-                .build();
+                .queryTextsList(Collections.singletonList(embeddingText)).build();
 
-        List<RetrieveQueryResult> resultList = embeddingService.retrieveQuery(embeddingConfig.getPresetCollection(),
-                retrieveQuery, embeddingConfig.getNResult());
+        List<RetrieveQueryResult> resultList = embeddingService.retrieveQuery(
+                embeddingConfig.getPresetCollection(), retrieveQuery, embeddingConfig.getNResult());
 
         if (CollectionUtils.isNotEmpty(resultList)) {
             for (RetrieveQueryResult embeddingResp : resultList) {
                 List<Retrieval> embeddingRetrievals = embeddingResp.getRetrieval();
                 for (Retrieval embeddingRetrieval : embeddingRetrievals) {
-                    embeddingRetrieval.setId(getPluginIdFromEmbeddingId(embeddingRetrieval.getId()));
+                    embeddingRetrieval
+                            .setId(getPluginIdFromEmbeddingId(embeddingRetrieval.getId()));
                 }
             }
             return resultList.get(0);
@@ -162,7 +165,8 @@ public class PluginManager {
             int num = 0;
             for (String pattern : exampleQuestions) {
                 TextSegment query = TextSegment.from(pattern);
-                TextSegmentConvert.addQueryId(query, generateUniqueEmbeddingId(num, plugin.getId()));
+                TextSegmentConvert.addQueryId(query,
+                        generateUniqueEmbeddingId(num, plugin.getId()));
                 queries.add(query);
                 num++;
             }
@@ -178,7 +182,7 @@ public class PluginManager {
         return embeddingIdSet;
     }
 
-    //num can not bigger than 100
+    // num can not bigger than 100
     private String generateUniqueEmbeddingId(int num, Long pluginId) {
         if (num < 10) {
             return String.format("%s00%s", pluginId, num);
@@ -191,9 +195,11 @@ public class PluginManager {
         return String.valueOf(Integer.parseInt(id) / 1000);
     }
 
-    public static Pair<Boolean, Set<Long>> resolve(ChatPlugin plugin, ChatParseContext chatParseContext) {
-        SchemaMapInfo schemaMapInfo = chatParseContext.getMapInfo();
-        Set<Long> pluginMatchedDataSet = getPluginMatchedDataSet(plugin, chatParseContext);
+    public static Pair<Boolean, Set<Long>> resolve(ChatPlugin plugin, ParseContext parseContext) {
+        ChatLayerService chatLayerService = ContextUtils.getBean(ChatLayerService.class);
+        QueryNLReq queryNLReq = QueryReqConverter.buildQueryNLReq(parseContext);
+        SchemaMapInfo schemaMapInfo = chatLayerService.map(queryNLReq).getMapInfo();
+        Set<Long> pluginMatchedDataSet = getPluginMatchedDataSet(plugin, schemaMapInfo);
         if (CollectionUtils.isEmpty(pluginMatchedDataSet) && !plugin.isContainsAllDataSet()) {
             return Pair.of(false, Sets.newHashSet());
         }
@@ -202,8 +208,8 @@ public class PluginManager {
             return Pair.of(true, pluginMatchedDataSet);
         }
         Set<Long> matchedDataSet = Sets.newHashSet();
-        Map<Long, List<ParamOption>> paramOptionMap = paramOptions.stream()
-                .collect(Collectors.groupingBy(ParamOption::getDataSetId));
+        Map<Long, List<ParamOption>> paramOptionMap =
+                paramOptions.stream().collect(Collectors.groupingBy(ParamOption::getDataSetId));
         for (Long dataSetId : paramOptionMap.keySet()) {
             List<ParamOption> params = paramOptionMap.get(dataSetId);
             if (CollectionUtils.isEmpty(params)) {
@@ -237,11 +243,11 @@ public class PluginManager {
         if (org.springframework.util.CollectionUtils.isEmpty(schemaElementMatches)) {
             return Sets.newHashSet();
         }
-        return schemaElementMatches.stream().filter(schemaElementMatch ->
-                        SchemaElementType.VALUE.equals(schemaElementMatch.getElement().getType())
-                                || SchemaElementType.ID.equals(schemaElementMatch.getElement().getType()))
-                .map(SchemaElementMatch::getElement)
-                .map(SchemaElement::getId)
+        return schemaElementMatches.stream()
+                .filter(schemaElementMatch -> SchemaElementType.VALUE
+                        .equals(schemaElementMatch.getElement().getType())
+                        || SchemaElementType.ID.equals(schemaElementMatch.getElement().getType()))
+                .map(SchemaElementMatch::getElement).map(SchemaElement::getId)
                 .collect(Collectors.toSet());
     }
 
@@ -254,13 +260,13 @@ public class PluginManager {
         if (CollectionUtils.isEmpty(paramOptions)) {
             return Lists.newArrayList();
         }
-        return paramOptions.stream()
-                .filter(paramOption -> ParamOption.ParamType.SEMANTIC.equals(paramOption.getParamType()))
+        return paramOptions.stream().filter(
+                paramOption -> ParamOption.ParamType.SEMANTIC.equals(paramOption.getParamType()))
                 .collect(Collectors.toList());
     }
 
-    private static Set<Long> getPluginMatchedDataSet(ChatPlugin plugin, ChatParseContext chatParseContext) {
-        Set<Long> matchedDataSets = chatParseContext.getMapInfo().getMatchedDataSetInfos();
+    private static Set<Long> getPluginMatchedDataSet(ChatPlugin plugin, SchemaMapInfo mapInfo) {
+        Set<Long> matchedDataSets = mapInfo.getMatchedDataSetInfos();
         if (plugin.isContainsAllDataSet()) {
             return Sets.newHashSet(plugin.getDefaultMode());
         }
@@ -273,5 +279,4 @@ public class PluginManager {
         }
         return pluginMatchedDataSet;
     }
-
 }

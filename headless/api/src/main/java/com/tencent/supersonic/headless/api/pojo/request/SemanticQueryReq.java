@@ -13,7 +13,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-
 @Data
 @Slf4j
 public abstract class SemanticQueryReq {
@@ -50,13 +49,5 @@ public abstract class SemanticQueryReq {
 
     public Set<Long> getModelIdSet() {
         return modelIds;
-    }
-
-    public boolean isNeedAuth() {
-        return needAuth;
-    }
-
-    public void setNeedAuth(boolean needAuth) {
-        this.needAuth = needAuth;
     }
 }

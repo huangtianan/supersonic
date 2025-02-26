@@ -20,9 +20,6 @@ import static com.tencent.supersonic.common.pojo.Constants.PARENTHESES_START;
 import static com.tencent.supersonic.common.pojo.Constants.SPACE;
 import static com.tencent.supersonic.common.pojo.Constants.SYS_VAR;
 
-;
-
-
 @Component
 @Slf4j
 public class SqlFilterUtils {
@@ -62,12 +59,11 @@ public class SqlFilterUtils {
         StringJoiner joiner = new StringJoiner(Constants.AND_UPPER);
 
         if (!CollectionUtils.isEmpty(filters)) {
-            filters.stream()
-                    .forEach(filter -> {
-                        if (StringUtils.isNotEmpty(dealFilter(filter, isBizName))) {
-                            joiner.add(SPACE + dealFilter(filter, isBizName) + SPACE);
-                        }
-                    });
+            filters.stream().forEach(filter -> {
+                if (StringUtils.isNotEmpty(dealFilter(filter, isBizName))) {
+                    joiner.add(SPACE + dealFilter(filter, isBizName) + SPACE);
+                }
+            });
             log.debug("getWhereClause, where sql : {}", joiner);
             return joiner.toString();
         }
@@ -162,15 +158,18 @@ public class SqlFilterUtils {
             throw new RuntimeException("criterion.getValue() can not be null");
         }
         StringBuilder whereClause = new StringBuilder();
-        whereClause.append(criterion.getColumn() + SPACE + criterion.getOperator().getValue() + SPACE);
+        whereClause
+                .append(criterion.getColumn() + SPACE + criterion.getOperator().getValue() + SPACE);
         String value = criterion.getValue().toString();
         if (criterion.isNeedApostrophe() && !Pattern.matches(pattern, value)) {
             // like click => 'like%'
-            whereClause.append(Constants.APOSTROPHE + value + Constants.PERCENT_SIGN + Constants.APOSTROPHE);
+            whereClause.append(
+                    Constants.APOSTROPHE + value + Constants.PERCENT_SIGN + Constants.APOSTROPHE);
 
         } else {
             // like 'click' => 'like%'
-            whereClause.append(Constants.APOSTROPHE + value.replaceAll(Constants.APOSTROPHE, Constants.PERCENT_SIGN)
+            whereClause.append(Constants.APOSTROPHE
+                    + value.replaceAll(Constants.APOSTROPHE, Constants.PERCENT_SIGN)
                     + Constants.APOSTROPHE);
         }
         return whereClause.toString();
@@ -182,7 +181,8 @@ public class SqlFilterUtils {
         }
 
         StringBuilder whereClause = new StringBuilder();
-        whereClause.append(criterion.getColumn() + SPACE + criterion.getOperator().getValue() + SPACE);
+        whereClause
+                .append(criterion.getColumn() + SPACE + criterion.getOperator().getValue() + SPACE);
         List values = (List) criterion.getValue();
         whereClause.append(PARENTHESES_START);
         StringJoiner joiner = new StringJoiner(",");
@@ -207,11 +207,11 @@ public class SqlFilterUtils {
 
         if (criterion.isNeedApostrophe()) {
             return String.format("(%s >= %s and %s <= %s)", criterion.getColumn(),
-                    valueApostropheLogic(values.get(0).toString()),
-                    criterion.getColumn(), valueApostropheLogic(values.get(1).toString()));
+                    valueApostropheLogic(values.get(0).toString()), criterion.getColumn(),
+                    valueApostropheLogic(values.get(1).toString()));
         }
-        return String.format("(%s >= %s and %s <= %s)", criterion.getColumn(), values.get(0).toString(),
-                criterion.getColumn(), values.get(1).toString());
+        return String.format("(%s >= %s and %s <= %s)", criterion.getColumn(),
+                values.get(0).toString(), criterion.getColumn(), values.get(1).toString());
     }
 
     private String singleValueLogic(Criterion criterion) {
@@ -219,7 +219,8 @@ public class SqlFilterUtils {
             throw new RuntimeException("criterion.getValue() can not be null");
         }
         StringBuilder whereClause = new StringBuilder();
-        whereClause.append(criterion.getColumn() + SPACE + criterion.getOperator().getValue() + SPACE);
+        whereClause
+                .append(criterion.getColumn() + SPACE + criterion.getOperator().getValue() + SPACE);
         String value = criterion.getValue().toString();
         if (criterion.isNeedApostrophe()) {
             value = valueApostropheLogic(value);
@@ -247,7 +248,7 @@ public class SqlFilterUtils {
         if (Objects.isNull(criterion) || Objects.isNull(criterion.getValue())) {
             throw new RuntimeException("criterion.getValue() can not be null");
         }
-        return PARENTHESES_START + SPACE + criterion.getValue().toString() + SPACE + PARENTHESES_END;
+        return PARENTHESES_START + SPACE + criterion.getValue().toString() + SPACE
+                + PARENTHESES_END;
     }
-
 }

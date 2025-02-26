@@ -1,6 +1,5 @@
 package com.tencent.supersonic.auth.api.authentication.config;
 
-
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +17,9 @@ public class AuthenticationConfig {
 
     @Value("${s2.authentication.include.path:/api}")
     private String includePath;
+
+    @Value("${s2.authentication.strategy:http}")
+    private String strategy;
 
     @Value("${s2.authentication.enable:false}")
     private boolean enabled;
@@ -48,8 +50,7 @@ public class AuthenticationConfig {
     private Long tokenTimeout;
 
     public Map<String, String> getAppKeyToSecretMap() {
-        return Arrays.stream(this.tokenAppSecret.split(","))
-                .map(s -> s.split(":"))
+        return Arrays.stream(this.tokenAppSecret.split(",")).map(s -> s.split(":"))
                 .collect(Collectors.toMap(e -> e[0].trim(), e -> e[1].trim()));
     }
 }

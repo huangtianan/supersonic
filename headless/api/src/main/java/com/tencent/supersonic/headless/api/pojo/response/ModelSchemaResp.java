@@ -32,5 +32,4 @@ public class ModelSchemaResp extends ModelResp {
             return modelClusterSet;
         }
     }
-
 }

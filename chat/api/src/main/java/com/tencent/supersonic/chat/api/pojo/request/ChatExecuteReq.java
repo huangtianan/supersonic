@@ -1,6 +1,6 @@
 package com.tencent.supersonic.chat.api.pojo.request;
 
-import com.tencent.supersonic.auth.api.authentication.pojo.User;
+import com.tencent.supersonic.common.pojo.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,5 +18,4 @@ public class ChatExecuteReq {
     private int parseId;
     private String queryText;
     private boolean saveAnswer;
-
 }

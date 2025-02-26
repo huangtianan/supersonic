@@ -1,191 +1,211 @@
 package com.tencent.supersonic.chat.server.parser;
 
-import static com.tencent.supersonic.chat.server.parser.ParserConfig.PARSER_MULTI_TURN_ENABLE;
-
-import com.tencent.supersonic.chat.server.agent.MultiTurnConfig;
-import com.tencent.supersonic.chat.server.persistence.repository.ChatQueryRepository;
-import com.tencent.supersonic.chat.server.plugin.PluginQueryManager;
-import com.tencent.supersonic.chat.server.pojo.ChatParseContext;
+import com.google.common.collect.Lists;
+import com.tencent.supersonic.chat.api.pojo.response.ChatParseResp;
+import com.tencent.supersonic.chat.api.pojo.response.QueryResp;
+import com.tencent.supersonic.chat.server.pojo.ParseContext;
+import com.tencent.supersonic.chat.server.service.ChatManageService;
 import com.tencent.supersonic.chat.server.util.QueryReqConverter;
 import com.tencent.supersonic.common.config.EmbeddingConfig;
-import com.tencent.supersonic.common.config.LLMConfig;
-import com.tencent.supersonic.common.pojo.SqlExemplar;
+import com.tencent.supersonic.common.pojo.ChatApp;
+import com.tencent.supersonic.common.pojo.Text2SQLExemplar;
+import com.tencent.supersonic.common.pojo.enums.AppModule;
+import com.tencent.supersonic.common.pojo.enums.Text2SQLType;
 import com.tencent.supersonic.common.service.impl.ExemplarServiceImpl;
+import com.tencent.supersonic.common.util.ChatAppManager;
 import com.tencent.supersonic.common.util.ContextUtils;
-import com.tencent.supersonic.headless.api.pojo.SchemaElement;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementMatch;
 import com.tencent.supersonic.headless.api.pojo.SchemaElementType;
 import com.tencent.supersonic.headless.api.pojo.SemanticParseInfo;
-import com.tencent.supersonic.headless.api.pojo.request.QueryFilter;
-import com.tencent.supersonic.headless.api.pojo.request.QueryReq;
+import com.tencent.supersonic.headless.api.pojo.enums.MapModeEnum;
+import com.tencent.supersonic.headless.api.pojo.request.QueryNLReq;
 import com.tencent.supersonic.headless.api.pojo.response.MapResp;
 import com.tencent.supersonic.headless.api.pojo.response.ParseResp;
-import com.tencent.supersonic.headless.server.facade.service.ChatQueryService;
+import com.tencent.supersonic.headless.api.pojo.response.QueryState;
+import com.tencent.supersonic.headless.chat.parser.ParserConfig;
+import com.tencent.supersonic.headless.server.facade.service.ChatLayerService;
+import com.tencent.supersonic.headless.server.utils.ModelConfigHelper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.model.output.Response;
-import dev.langchain4j.model.provider.ChatLanguageModelProvider;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-import lombok.Builder;
-import lombok.Data;
+import dev.langchain4j.provider.ModelProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.CollectionUtils;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static com.tencent.supersonic.headless.chat.parser.ParserConfig.PARSER_EXEMPLAR_RECALL_NUMBER;
+import static com.tencent.supersonic.headless.chat.parser.ParserConfig.PARSER_SHOW_COUNT;
 
 @Slf4j
-public class NL2SQLParser implements ChatParser {
+public class NL2SQLParser implements ChatQueryParser {
 
     private static final Logger keyPipelineLog = LoggerFactory.getLogger("keyPipeline");
 
-    private static final String REWRITE_INSTRUCTION = ""
-            + "#Role: You are a data product manager experienced in data requirements.\n"
+    public static final String APP_KEY_MULTI_TURN = "REWRITE_MULTI_TURN";
+    private static final String REWRITE_MULTI_TURN_INSTRUCTION = ""
+            + "#Role: You are a data product manager experienced in data requirements."
             + "#Task: Your will be provided with current and history questions asked by a user,"
             + "along with their mapped schema elements(metric, dimension and value),"
-            + "please try understanding the semantics and rewrite a question.\n"
-            + "#Rules: "
-            + "1.ALWAYS keep relevant entities, metrics, dimensions, values and date ranges. "
-            + "2.ONLY respond with the rewritten question.\n"
-            + "#Current Question: %s\n"
-            + "#Current Mapped Schema: %s\n"
-            + "#History Question: %s\n"
-            + "#History Mapped Schema: %s\n"
-            + "#History SQL: %s\n"
+            + "please try understanding the semantics and rewrite a question." + "#Rules: "
+            + "1.ALWAYS keep relevant entities, metrics, dimensions, values and date ranges."
+            + "2.ONLY respond with the rewritten question."
+            + "#Current Question: {{current_question}}"
+            + "#Current Mapped Schema: {{current_schema}}"
+            + "#History Question: {{history_question}}"
+            + "#History Mapped Schema: {{history_schema}}" + "#History SQL: {{history_sql}}"
             + "#Rewritten Question: ";
 
+    public NL2SQLParser() {
+        ChatAppManager.register(APP_KEY_MULTI_TURN,
+                ChatApp.builder().prompt(REWRITE_MULTI_TURN_INSTRUCTION).name("多轮对话改写")
+                        .appModule(AppModule.CHAT).description("通过大模型根据历史对话来改写本轮对话").enable(false)
+                        .build());
+    }
+
     @Override
-    public void parse(ChatParseContext chatParseContext, ParseResp parseResp) {
-        if (!chatParseContext.enableNL2SQL() || checkSkip(parseResp)) {
+    public void parse(ParseContext parseContext) {
+        if (!parseContext.enableNL2SQL()) {
             return;
         }
-        processMultiTurn(chatParseContext);
 
-        QueryReq queryReq = QueryReqConverter.buildText2SqlQueryReq(chatParseContext);
-        addExemplars(chatParseContext.getAgent().getId(), queryReq);
+        // first go with rule-based parsers unless the user has already selected one parse.
+        if (Objects.isNull(parseContext.getRequest().getSelectedParse())) {
+            QueryNLReq queryNLReq = QueryReqConverter.buildQueryNLReq(parseContext);
+            queryNLReq.setText2SQLType(Text2SQLType.ONLY_RULE);
+            if (parseContext.enableLLM()) {
+                queryNLReq.setText2SQLType(Text2SQLType.NONE);
+            }
 
-        ChatQueryService chatQueryService = ContextUtils.getBean(ChatQueryService.class);
-        ParseResp text2SqlParseResp = chatQueryService.performParsing(queryReq);
-        if (!ParseResp.ParseState.FAILED.equals(text2SqlParseResp.getState())) {
-            parseResp.getSelectedParses().addAll(text2SqlParseResp.getSelectedParses());
-        }
-        parseResp.getParseTimeCost().setSqlTime(text2SqlParseResp.getParseTimeCost().getSqlTime());
-        formatParseResult(parseResp);
-    }
+            // for every requested dataSet, recursively invoke rule-based parser with different
+            // mapModes
+            Set<Long> requestedDatasets = queryNLReq.getDataSetIds();
+            List<SemanticParseInfo> candidateParses = Lists.newArrayList();
+            StringBuilder errMsg = new StringBuilder();
+            for (Long datasetId : requestedDatasets) {
+                queryNLReq.setDataSetIds(Collections.singleton(datasetId));
+                ChatParseResp parseResp = new ChatParseResp(parseContext.getRequest().getQueryId());
+                for (MapModeEnum mode : Lists.newArrayList(MapModeEnum.STRICT,
+                        MapModeEnum.MODERATE)) {
+                    queryNLReq.setMapModeEnum(mode);
+                    doParse(queryNLReq, parseResp);
+                }
 
-    private boolean checkSkip(ParseResp parseResp) {
-        List<SemanticParseInfo> selectedParses = parseResp.getSelectedParses();
-        for (SemanticParseInfo semanticParseInfo : selectedParses) {
-            if (semanticParseInfo.getScore() >= parseResp.getQueryText().length()) {
-                return true;
+                if (parseResp.getSelectedParses().isEmpty() && candidateParses.isEmpty()) {
+                    queryNLReq.setMapModeEnum(MapModeEnum.LOOSE);
+                    doParse(queryNLReq, parseResp);
+                }
+
+                if (parseResp.getSelectedParses().isEmpty()) {
+                    errMsg.append(parseResp.getErrorMsg());
+                    continue;
+                }
+                // for one dataset select the top 1 parse after sorting
+                SemanticParseInfo.sort(parseResp.getSelectedParses());
+                candidateParses.add(parseResp.getSelectedParses().get(0));
+            }
+            ParserConfig parserConfig = ContextUtils.getBean(ParserConfig.class);
+            int parserShowCount =
+                    Integer.parseInt(parserConfig.getParameterValue(PARSER_SHOW_COUNT));
+            SemanticParseInfo.sort(candidateParses);
+            parseContext.getResponse().setSelectedParses(
+                    candidateParses.subList(0, Math.min(parserShowCount, candidateParses.size())));
+            if (parseContext.getResponse().getSelectedParses().isEmpty()) {
+                parseContext.getResponse().setState(ParseResp.ParseState.FAILED);
+                parseContext.getResponse().setErrorMsg(errMsg.toString());
             }
         }
-        return false;
-    }
 
-    private void formatParseResult(ParseResp parseResp) {
-        List<SemanticParseInfo> selectedParses = parseResp.getSelectedParses();
-        for (SemanticParseInfo parseInfo : selectedParses) {
-            formatParseInfo(parseInfo);
-        }
-    }
+        // next go with llm-based parsers unless LLM is disabled or use feedback is needed.
+        if (parseContext.needLLMParse() && !parseContext.needFeedback()) {
+            // either the user or the system selects one parse from the candidate parses.
+            if (Objects.isNull(parseContext.getRequest().getSelectedParse())
+                    && parseContext.getResponse().getSelectedParses().isEmpty()) {
+                return;
+            }
 
-    private void formatParseInfo(SemanticParseInfo parseInfo) {
-        if (!PluginQueryManager.isPluginQuery(parseInfo.getQueryMode())) {
-            formatNL2SQLParseInfo(parseInfo);
-        }
-    }
+            QueryNLReq queryNLReq = QueryReqConverter.buildQueryNLReq(parseContext);
+            queryNLReq.setText2SQLType(Text2SQLType.LLM_OR_RULE);
+            SemanticParseInfo userSelectParse = parseContext.getRequest().getSelectedParse();
+            queryNLReq.setSelectedParseInfo(Objects.nonNull(userSelectParse) ? userSelectParse
+                    : parseContext.getResponse().getSelectedParses().get(0));
+            parseContext.setResponse(new ChatParseResp(parseContext.getResponse().getQueryId()));
 
-    private void formatNL2SQLParseInfo(SemanticParseInfo parseInfo) {
-        StringBuilder textBuilder = new StringBuilder();
-        textBuilder.append("**数据集:** ").append(parseInfo.getDataSet().getName()).append(" ");
-        Optional<SchemaElement> metric = parseInfo.getMetrics().stream().findFirst();
-        metric.ifPresent(schemaElement ->
-                textBuilder.append("**指标:** ").append(schemaElement.getName()).append(" "));
-        List<String> dimensionNames = parseInfo.getDimensions().stream()
-                .map(SchemaElement::getName).filter(Objects::nonNull).collect(Collectors.toList());
-        if (!CollectionUtils.isEmpty(dimensionNames)) {
-            textBuilder.append("**维度:** ").append(String.join(",", dimensionNames));
-        }
-        textBuilder.append("\n\n**筛选条件:** \n");
-        if (parseInfo.getDateInfo() != null) {
-            textBuilder.append("**数据时间:** ").append(parseInfo.getDateInfo().getStartDate()).append("~")
-                    .append(parseInfo.getDateInfo().getEndDate()).append(" ");
-        }
-        if (!CollectionUtils.isEmpty(parseInfo.getDimensionFilters())
-                || CollectionUtils.isEmpty(parseInfo.getMetricFilters())) {
-            Set<QueryFilter> queryFilters = parseInfo.getDimensionFilters();
-            queryFilters.addAll(parseInfo.getMetricFilters());
-            for (QueryFilter queryFilter : queryFilters) {
-                textBuilder.append("**").append(queryFilter.getName()).append("**")
-                        .append(" ")
-                        .append(queryFilter.getOperator().getValue())
-                        .append(" ")
-                        .append(queryFilter.getValue())
-                        .append(" ");
+            rewriteMultiTurn(parseContext, queryNLReq);
+            addDynamicExemplars(parseContext, queryNLReq);
+            doParse(queryNLReq, parseContext.getResponse());
+
+            // try again with all semantic fields passed to LLM
+            if (parseContext.getResponse().getState().equals(ParseResp.ParseState.FAILED)) {
+                queryNLReq.setSelectedParseInfo(null);
+                queryNLReq.setMapModeEnum(MapModeEnum.ALL);
+                doParse(queryNLReq, parseContext.getResponse());
             }
         }
-        parseInfo.setTextInfo(textBuilder.toString());
     }
 
-    private void processMultiTurn(ChatParseContext chatParseContext) {
-        ParserConfig parserConfig = ContextUtils.getBean(ParserConfig.class);
-        MultiTurnConfig agentMultiTurnConfig = chatParseContext.getAgent().getMultiTurnConfig();
-        Boolean globalMultiTurnConfig = Boolean.valueOf(parserConfig.getParameterValue(PARSER_MULTI_TURN_ENABLE));
+    private void doParse(QueryNLReq req, ChatParseResp resp) {
+        ChatLayerService chatLayerService = ContextUtils.getBean(ChatLayerService.class);
+        ParseResp parseResp = chatLayerService.parse(req);
+        if (parseResp.getState().equals(ParseResp.ParseState.COMPLETED)) {
+            resp.getSelectedParses().addAll(parseResp.getSelectedParses());
+        }
+        resp.setState(parseResp.getState());
+        resp.setParseTimeCost(parseResp.getParseTimeCost());
+        resp.setErrorMsg(parseResp.getErrorMsg());
+    }
 
-        Boolean multiTurnConfig = agentMultiTurnConfig != null
-                ? agentMultiTurnConfig.isEnableMultiTurn() : globalMultiTurnConfig;
-        if (!Boolean.TRUE.equals(multiTurnConfig)) {
+    private void rewriteMultiTurn(ParseContext parseContext, QueryNLReq queryNLReq) {
+        ChatApp chatApp = parseContext.getAgent().getChatAppConfig().get(APP_KEY_MULTI_TURN);
+        if (Objects.isNull(chatApp) || !chatApp.isEnable()) {
             return;
         }
 
         // derive mapping result of current question and parsing result of last question.
-        ChatQueryService chatQueryService = ContextUtils.getBean(ChatQueryService.class);
-        QueryReq queryReq = QueryReqConverter.buildText2SqlQueryReq(chatParseContext);
-        MapResp currentMapResult = chatQueryService.performMapping(queryReq);
+        ChatLayerService chatLayerService = ContextUtils.getBean(ChatLayerService.class);
+        MapResp currentMapResult = chatLayerService.map(queryNLReq);
 
-        List<ParseResp> historyParseResults = getHistoryParseResult(chatParseContext.getChatId(), 1);
-        if (historyParseResults.size() == 0) {
+        List<QueryResp> historyQueries =
+                getHistoryQueries(parseContext.getRequest().getChatId(), 1);
+        if (historyQueries.isEmpty()) {
             return;
         }
-        ParseResp lastParseResult = historyParseResults.get(0);
-        Long dataId = lastParseResult.getSelectedParses().get(0).getDataSetId();
+        QueryResp lastQuery = historyQueries.get(0);
+        SemanticParseInfo lastParseInfo = lastQuery.getParseInfos().get(0);
+        Long dataId = lastParseInfo.getDataSetId();
 
-        String curtMapStr = generateSchemaPrompt(currentMapResult.getMapInfo().getMatchedElements(dataId));
-        String histMapStr = generateSchemaPrompt(lastParseResult.getSelectedParses().get(0).getElementMatches());
-        String histSQL = lastParseResult.getSelectedParses().get(0).getSqlInfo().getCorrectS2SQL();
-        String rewrittenQuery = rewriteQuery(RewriteContext.builder()
-                .curtQuestion(currentMapResult.getQueryText())
-                .histQuestion(lastParseResult.getQueryText())
-                .curtSchema(curtMapStr)
-                .histSchema(histMapStr)
-                .histSQL(histSQL)
-                .llmConfig(queryReq.getLlmConfig())
-                .build());
-        chatParseContext.setQueryText(rewrittenQuery);
-        log.info("Last Query: {} Current Query: {}, Rewritten Query: {}",
-                lastParseResult.getQueryText(), currentMapResult.getQueryText(), rewrittenQuery);
-    }
+        String curtMapStr =
+                generateSchemaPrompt(currentMapResult.getMapInfo().getMatchedElements(dataId));
+        String histMapStr = generateSchemaPrompt(lastParseInfo.getElementMatches());
+        String histSQL = lastParseInfo.getSqlInfo().getCorrectedS2SQL();
 
-    private String rewriteQuery(RewriteContext context) {
-        String promptStr = String.format(REWRITE_INSTRUCTION, context.getCurtQuestion(), context.getCurtSchema(),
-                context.getHistQuestion(), context.getHistSchema(), context.getHistSQL());
-        Prompt prompt = PromptTemplate.from(promptStr).apply(Collections.EMPTY_MAP);
-        keyPipelineLog.info("NL2SQLParser reqPrompt:{}", promptStr);
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("current_question", currentMapResult.getQueryText());
+        variables.put("current_schema", curtMapStr);
+        variables.put("history_question", lastQuery.getQueryText());
+        variables.put("history_schema", histMapStr);
+        variables.put("history_sql", histSQL);
 
-        ChatLanguageModel chatLanguageModel = ChatLanguageModelProvider.provide(context.getLlmConfig());
+        Prompt prompt = PromptTemplate.from(chatApp.getPrompt()).apply(variables);
+        ChatLanguageModel chatLanguageModel =
+                ModelProvider.getChatModel(ModelConfigHelper.getChatModelConfig(chatApp));
         Response<AiMessage> response = chatLanguageModel.generate(prompt.toUserMessage());
-
-        String result = response.content().text();
-        keyPipelineLog.info("NL2SQLParser modelResp:{}", result);
-        return response.content().text();
+        String rewrittenQuery = response.content().text();
+        keyPipelineLog.info("QueryRewrite modelReq:\n{} \nmodelResp:\n{}", prompt.text(), response);
+        parseContext.getRequest().setQueryText(rewrittenQuery);
+        queryNLReq.setQueryText(rewrittenQuery);
+        log.info("Last Query: {} Current Query: {}, Rewritten Query: {}", lastQuery.getQueryText(),
+                currentMapResult.getQueryText(), rewrittenQuery);
     }
 
     private String generateSchemaPrompt(List<SchemaElementMatch> elementMatches) {
@@ -213,36 +233,30 @@ public class NL2SQLParser implements ChatParser {
         return prompt.toString();
     }
 
-    private List<ParseResp> getHistoryParseResult(int chatId, int multiNum) {
-        ChatQueryRepository chatQueryRepository = ContextUtils.getBean(ChatQueryRepository.class);
-        List<ParseResp> contextualParseInfoList = chatQueryRepository.getContextualParseInfo(chatId)
-                .stream().filter(p -> p.getState() != ParseResp.ParseState.FAILED).collect(Collectors.toList());
+    private List<QueryResp> getHistoryQueries(int chatId, int multiNum) {
+        ChatManageService chatManageService = ContextUtils.getBean(ChatManageService.class);
+        List<QueryResp> contextualParseInfoList = chatManageService.getChatQueries(chatId).stream()
+                .filter(q -> Objects.nonNull(q.getQueryResult())
+                        && q.getQueryResult().getQueryState() == QueryState.SUCCESS)
+                .collect(Collectors.toList());
 
-        List<ParseResp> contextualList = contextualParseInfoList.subList(0,
+        List<QueryResp> contextualList = contextualParseInfoList.subList(0,
                 Math.min(multiNum, contextualParseInfoList.size()));
         Collections.reverse(contextualList);
         return contextualList;
     }
 
-    private void addExemplars(Integer agentId, QueryReq queryReq) {
+    private void addDynamicExemplars(ParseContext parseContext, QueryNLReq queryNLReq) {
         ExemplarServiceImpl exemplarManager = ContextUtils.getBean(ExemplarServiceImpl.class);
         EmbeddingConfig embeddingConfig = ContextUtils.getBean(EmbeddingConfig.class);
-        String memoryCollectionName = embeddingConfig.getMemoryCollectionName(agentId);
-        List<SqlExemplar> exemplars = exemplarManager.recallExemplars(memoryCollectionName,
-                queryReq.getQueryText(), 5);
-        queryReq.getExemplars().addAll(exemplars);
+        String memoryCollectionName =
+                embeddingConfig.getMemoryCollectionName(parseContext.getAgent().getId());
+        ParserConfig parserConfig = ContextUtils.getBean(ParserConfig.class);
+        int exemplarRecallNumber =
+                Integer.parseInt(parserConfig.getParameterValue(PARSER_EXEMPLAR_RECALL_NUMBER));
+        List<Text2SQLExemplar> exemplars = exemplarManager.recallExemplars(memoryCollectionName,
+                queryNLReq.getQueryText(), exemplarRecallNumber);
+        queryNLReq.getDynamicExemplars().addAll(exemplars);
+        parseContext.getResponse().setUsedExemplars(exemplars);
     }
-
-    @Builder
-    @Data
-    public static class RewriteContext {
-
-        private String curtQuestion;
-        private String histQuestion;
-        private String curtSchema;
-        private String histSchema;
-        private String histSQL;
-        private LLMConfig llmConfig;
-    }
-
 }

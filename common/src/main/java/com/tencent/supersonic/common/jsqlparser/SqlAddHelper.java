@@ -1,39 +1,19 @@
 package com.tencent.supersonic.common.jsqlparser;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.ArrayList;
-import java.util.HashSet;
-
-import com.tencent.supersonic.common.pojo.enums.TimeDimensionEnum;
 import lombok.extern.slf4j.Slf4j;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.Function;
-import net.sf.jsqlparser.expression.LongValue;
-import net.sf.jsqlparser.expression.Parenthesis;
-import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.*;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.ComparisonOperator;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.schema.Column;
-import net.sf.jsqlparser.schema.Table;
-import net.sf.jsqlparser.statement.select.GroupByElement;
-import net.sf.jsqlparser.statement.select.OrderByElement;
-import net.sf.jsqlparser.statement.select.PlainSelect;
-import net.sf.jsqlparser.statement.select.Select;
-import net.sf.jsqlparser.statement.select.SelectItem;
-import net.sf.jsqlparser.statement.select.SelectVisitorAdapter;
-import net.sf.jsqlparser.statement.select.SetOperationList;
-import net.sf.jsqlparser.statement.select.ParenthesedSelect;
+import net.sf.jsqlparser.statement.select.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
 
-/**
- * Sql Parser add Helper
- */
+import java.util.*;
+
+/** Sql Parser add Helper */
 @Slf4j
 public class SqlAddHelper {
 
@@ -76,7 +56,8 @@ public class SqlAddHelper {
             PlainSelect plainSelect = (PlainSelect) selectStatement.getPlainSelect();
             plainSelectList.add(plainSelect);
         } else if (selectStatement instanceof SetOperationList) {
-            SetOperationList setOperationList = (SetOperationList) selectStatement.getSetOperationList();
+            SetOperationList setOperationList =
+                    (SetOperationList) selectStatement.getSetOperationList();
             if (!CollectionUtils.isEmpty(setOperationList.getSelects())) {
                 setOperationList.getSelects().forEach(subSelectBody -> {
                     PlainSelect subPlainSelect = (PlainSelect) subSelectBody;
@@ -145,42 +126,7 @@ public class SqlAddHelper {
             return sql;
         }
         PlainSelect plainSelect = (PlainSelect) selectStatement;
-        List<String> chNameList = TimeDimensionEnum.getChNameList();
-        Boolean dateWhere = false;
-        for (String chName : chNameList) {
-            if (expression.toString().contains(chName)) {
-                dateWhere = true;
-            }
-        }
-        List<PlainSelect> plainSelectList = SqlSelectHelper.getWithItem(selectStatement);
-        if (!CollectionUtils.isEmpty(plainSelectList) && dateWhere) {
-            List<String> withNameList = SqlSelectHelper.getWithName(sql);
-            for (int i = 0; i < plainSelectList.size(); i++) {
-                if (plainSelectList.get(i).getFromItem() instanceof Table) {
-                    Table table = (Table) plainSelectList.get(i).getFromItem();
-                    if (withNameList.contains(table.getName())) {
-                        continue;
-                    }
-                }
-                Set<String> result = new HashSet<>();
-                List<PlainSelect> subPlainSelectList = new ArrayList<>();
-                subPlainSelectList.add(plainSelectList.get(i));
-                SqlSelectHelper.getWhereFields(subPlainSelectList, result);
-                if (TimeDimensionEnum.containsZhTimeDimension(new ArrayList<>(result))) {
-                    continue;
-                }
-                Expression subWhere = plainSelectList.get(i).getWhere();
-                addWhere(plainSelectList.get(i), subWhere, expression);
-            }
-            return selectStatement.toString();
-        }
-        if (plainSelect.getFromItem() instanceof ParenthesedSelect && dateWhere) {
-            ParenthesedSelect parenthesedSelect = (ParenthesedSelect) plainSelect.getFromItem();
-            PlainSelect subPlainSelect = parenthesedSelect.getPlainSelect();
-            Expression subWhere = subPlainSelect.getWhere();
-            addWhere(subPlainSelect, subWhere, expression);
-            return selectStatement.toString();
-        }
+
         Expression where = plainSelect.getWhere();
 
         addWhere(plainSelect, where, expression);
@@ -264,7 +210,8 @@ public class SqlAddHelper {
             Map<String, String> fieldNameToAggregate) {
         for (SelectItem selectItem : selectItems) {
             Expression expression = selectItem.getExpression();
-            Function function = SqlSelectFunctionHelper.getFunction(expression, fieldNameToAggregate);
+            Function function =
+                    SqlSelectFunctionHelper.getFunction(expression, fieldNameToAggregate);
             if (function == null) {
                 continue;
             }
@@ -273,13 +220,14 @@ public class SqlAddHelper {
     }
 
     private static void addAggregateToOrderByItems(List<OrderByElement> orderByElements,
-                                                   Map<String, String> fieldNameToAggregate) {
+            Map<String, String> fieldNameToAggregate) {
         if (orderByElements == null) {
             return;
         }
         for (OrderByElement orderByElement : orderByElements) {
             Expression expression = orderByElement.getExpression();
-            Function function = SqlSelectFunctionHelper.getFunction(expression, fieldNameToAggregate);
+            Function function =
+                    SqlSelectFunctionHelper.getFunction(expression, fieldNameToAggregate);
             if (function == null) {
                 continue;
             }
@@ -288,13 +236,14 @@ public class SqlAddHelper {
     }
 
     private static void addAggregateToGroupByItems(GroupByElement groupByElement,
-                                                   Map<String, String> fieldNameToAggregate) {
+            Map<String, String> fieldNameToAggregate) {
         if (groupByElement == null) {
             return;
         }
         for (int i = 0; i < groupByElement.getGroupByExpressionList().size(); i++) {
             Expression expression = (Expression) groupByElement.getGroupByExpressionList().get(i);
-            Function function = SqlSelectFunctionHelper.getFunction(expression, fieldNameToAggregate);
+            Function function =
+                    SqlSelectFunctionHelper.getFunction(expression, fieldNameToAggregate);
             if (function == null) {
                 continue;
             }
@@ -302,7 +251,8 @@ public class SqlAddHelper {
         }
     }
 
-    private static void addAggregateToWhereItems(Expression whereExpression, Map<String, String> fieldNameToAggregate) {
+    private static void addAggregateToWhereItems(Expression whereExpression,
+            Map<String, String> fieldNameToAggregate) {
         if (whereExpression == null) {
             return;
         }
@@ -310,7 +260,7 @@ public class SqlAddHelper {
     }
 
     private static void modifyWhereExpression(Expression whereExpression,
-                                              Map<String, String> fieldNameToAggregate) {
+            Map<String, String> fieldNameToAggregate) {
         if (SqlSelectHelper.isLogicExpression(whereExpression)) {
             if (whereExpression instanceof AndExpression) {
                 AndExpression andExpression = (AndExpression) whereExpression;
@@ -327,29 +277,32 @@ public class SqlAddHelper {
                 modifyWhereExpression(rightExpression, fieldNameToAggregate);
             }
         } else if (whereExpression instanceof Parenthesis) {
-            modifyWhereExpression(((Parenthesis) whereExpression).getExpression(), fieldNameToAggregate);
+            modifyWhereExpression(((Parenthesis) whereExpression).getExpression(),
+                    fieldNameToAggregate);
         } else {
             setAggToFunction(whereExpression, fieldNameToAggregate);
         }
     }
 
-    private static void setAggToFunction(Expression expression, Map<String, String> fieldNameToAggregate) {
+    private static void setAggToFunction(Expression expression,
+            Map<String, String> fieldNameToAggregate) {
         if (!(expression instanceof ComparisonOperator)) {
             return;
         }
         ComparisonOperator comparisonOperator = (ComparisonOperator) expression;
         if (comparisonOperator.getRightExpression() instanceof Column) {
-            String columnName = ((Column) (comparisonOperator).getRightExpression()).getColumnName();
-            Function function = SqlSelectFunctionHelper.getFunction(comparisonOperator.getRightExpression(),
-                    fieldNameToAggregate.get(columnName));
+            String columnName =
+                    ((Column) (comparisonOperator).getRightExpression()).getColumnName();
+            Function function = SqlSelectFunctionHelper.getFunction(
+                    comparisonOperator.getRightExpression(), fieldNameToAggregate.get(columnName));
             if (Objects.nonNull(function)) {
                 comparisonOperator.setRightExpression(function);
             }
         }
         if (comparisonOperator.getLeftExpression() instanceof Column) {
             String columnName = ((Column) (comparisonOperator).getLeftExpression()).getColumnName();
-            Function function = SqlSelectFunctionHelper.getFunction(comparisonOperator.getLeftExpression(),
-                    fieldNameToAggregate.get(columnName));
+            Function function = SqlSelectFunctionHelper.getFunction(
+                    comparisonOperator.getLeftExpression(), fieldNameToAggregate.get(columnName));
             if (Objects.nonNull(function)) {
                 comparisonOperator.setLeftExpression(function);
             }
@@ -364,7 +317,7 @@ public class SqlAddHelper {
         }
 
         PlainSelect plainSelect = (PlainSelect) selectStatement;
-        //replace metric to 1 and 1 and add having metric
+        // replace metric to 1 and 1 and add having metric
         Expression where = plainSelect.getWhere();
         FiledFilterReplaceVisitor visitor = new FiledFilterReplaceVisitor(fieldNames);
         if (Objects.nonNull(where)) {
@@ -423,4 +376,3 @@ public class SqlAddHelper {
         return selectStatement.toString();
     }
 }
-

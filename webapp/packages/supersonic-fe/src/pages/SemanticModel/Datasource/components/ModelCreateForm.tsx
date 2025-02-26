@@ -3,7 +3,7 @@ import { Form, Button, Modal, Steps, message } from 'antd';
 import ModelBasicForm from './ModelBasicForm';
 import ModelFieldForm from './ModelFieldForm';
 import { formLayout } from '@/components/FormHelper/utils';
-import { EnumDataSourceType } from '../constants';
+import { EnumDataSourceType, EnumModelDataType } from '../constants';
 import styles from '../style.less';
 import {
   updateModel,
@@ -203,6 +203,19 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
               },
             });
             break;
+          case EnumDataSourceType.PARTITION_TIME:
+            fieldsClassify.dimensions.push({
+              bizName: fieldName,
+              type,
+              isCreateDimension,
+              name,
+              dateFormat,
+              typeParams: {
+                isPrimary: true,
+                timeGranularity: timeGranularity || '',
+              },
+            });
+            break;
           case EnumDataSourceType.FOREIGN:
           case EnumDataSourceType.PRIMARY:
             fieldsClassify.identifiers.push({
@@ -285,6 +298,7 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
       setFields(fieldsClassifyList || []);
       return;
     }
+
     const columnFields: any[] = columns.map((item: IDataSource.IExecuteSqlColumn) => {
       const { type, nameEn, comment } = item;
       const oldItem =
@@ -302,11 +316,21 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
     setFields(columnFields || []);
   };
 
+  const formatterIdentifiers = (identifiersList: any[] = []) => {
+    return identifiersList.map((identifiers: any) => {
+      return {
+        ...identifiers,
+        classType: EnumModelDataType.IDENTIFIERS,
+      };
+    });
+  };
+
   const formatterMeasures = (measuresList: any[] = []) => {
     return measuresList.map((measures: any) => {
       return {
         ...measures,
         type: EnumDataSourceType.MEASURES,
+        classType: EnumModelDataType.MEASURES,
       };
     });
   };
@@ -316,6 +340,7 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
       return {
         ...dimension,
         timeGranularity: typeParams?.timeGranularity || '',
+        classType: EnumModelDataType.DIMENSION,
       };
     });
   };
@@ -326,12 +351,24 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
     let columns = fieldColumns || [];
     if (queryType === 'table_query') {
       const tableQueryString = tableQuery || '';
-      const [dbName, tableName] = tableQueryString.split('.');
-      columns = await queryTableColumnList(modelItem.databaseId, dbName, tableName);
-      tableQueryInitValue = {
-        dbName,
-        tableName,
-      };
+      if (tableQueryString.split('.').length === 3) {
+        const [catalog, dbName, tableName] = tableQueryString.split('.');
+        columns = await queryTableColumnList(modelItem.databaseId, catalog, dbName, tableName);
+        tableQueryInitValue = {
+          catalog,
+          dbName,
+          tableName,
+        };
+      }
+      if (tableQueryString.split('.').length === 2) {
+        const [dbName, tableName] = tableQueryString.split('.');
+        columns = await queryTableColumnList(modelItem.databaseId, '', dbName, tableName);
+        tableQueryInitValue = {
+          catalog: '',
+          dbName,
+          tableName,
+        };
+      }
     }
     formatterInitData(columns, tableQueryInitValue);
   };
@@ -357,7 +394,7 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
     form.setFieldsValue(initValue);
     const formatFields = [
       ...formatterDimensions(dimensions || []),
-      ...(identifiers || []),
+      ...formatterIdentifiers(identifiers || []),
       ...formatterMeasures(measures || []),
     ];
     initFields(formatFields, columns);
@@ -401,15 +438,15 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
     setFields(result);
   };
 
-  const queryTableColumnList = async (databaseId: number, dbName: string, tableName: string) => {
-    const { code, data, msg } = await getColumns(databaseId, dbName, tableName);
+  const queryTableColumnList = async (databaseId: number, catalog: string, dbName: string, tableName: string) => {
+    const { code, data, msg } = await getColumns(databaseId, catalog, dbName, tableName);
     if (code === 200) {
-      const list = data?.resultList || [];
+      const list = data || [];
       const columns = list.map((item: any, index: number) => {
-        const { dataType, name, comment } = item;
+        const { dataType, columnName, comment } = item;
         return {
           comment,
-          nameEn: name,
+          nameEn: columnName,
           type: dataType,
         };
       });
@@ -516,7 +553,7 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
   return (
     <Modal
       forceRender
-      width={currentStep ? 1300 : 800}
+      width={currentStep ? 1400 : 800}
       destroyOnClose
       title={`${isEdit ? '编辑' : '新建'}模型`}
       maskClosable={false}
@@ -538,10 +575,10 @@ const ModelCreateForm: React.FC<CreateFormProps> = ({
         }}
         onValuesChange={(value, values) => {
           const { tableName } = value;
-          const { dbName, databaseId } = values;
+          const { catalog, dbName, databaseId } = values;
           setFormDatabaseId(databaseId);
           if (tableName) {
-            queryTableColumnList(databaseId, dbName, tableName);
+            queryTableColumnList(databaseId, catalog, dbName, tableName);
           }
         }}
         className={styles.form}

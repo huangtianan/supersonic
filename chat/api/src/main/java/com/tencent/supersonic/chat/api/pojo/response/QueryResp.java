@@ -2,11 +2,10 @@ package com.tencent.supersonic.chat.api.pojo.response;
 
 import com.tencent.supersonic.headless.api.pojo.SemanticParseInfo;
 import com.tencent.supersonic.headless.api.pojo.response.ParseTimeCostResp;
-import com.tencent.supersonic.headless.api.pojo.response.QueryResult;
 import lombok.Data;
+
 import java.util.Date;
 import java.util.List;
-
 
 @Data
 public class QueryResp {
@@ -21,5 +20,4 @@ public class QueryResp {
     private List<SemanticParseInfo> parseInfos;
     private List<SimilarQueryRecallResp> similarQueries;
     private ParseTimeCostResp parseTimeCost = new ParseTimeCostResp();
-
 }

@@ -7,8 +7,8 @@ import com.tencent.supersonic.headless.api.pojo.response.DomainResp;
 import com.tencent.supersonic.headless.api.pojo.response.TagObjectResp;
 import com.tencent.supersonic.headless.server.persistence.dataobject.ClassDO;
 import com.tencent.supersonic.headless.server.persistence.repository.ClassRepository;
-import com.tencent.supersonic.headless.server.web.service.DomainService;
-import com.tencent.supersonic.headless.server.web.service.TagObjectService;
+import com.tencent.supersonic.headless.server.service.DomainService;
+import com.tencent.supersonic.headless.server.service.TagObjectService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.BeanUtils;
@@ -30,7 +30,7 @@ public class ClassConverter {
     private final TagObjectService tagObjectService;
 
     public ClassConverter(ClassRepository classRepository, DomainService domainService,
-                          TagObjectService tagObjectService) {
+            TagObjectService tagObjectService) {
         this.classRepository = classRepository;
         this.domainService = domainService;
         this.tagObjectService = tagObjectService;
@@ -56,7 +56,7 @@ public class ClassConverter {
     }
 
     private ClassResp convert2RespInternal(ClassDO classDO, Map<Long, DomainResp> idAndDomain,
-                                           Map<Long, String> classFullPathMap) {
+            Map<Long, String> classFullPathMap) {
         ClassResp classResp = new ClassResp();
         BeanUtils.copyProperties(classDO, classResp);
 
@@ -116,5 +116,4 @@ public class ClassConverter {
     public Map<Long, TagObjectResp> getIdAndTagSet() {
         return tagObjectService.getAllTagObjectMap();
     }
-
 }

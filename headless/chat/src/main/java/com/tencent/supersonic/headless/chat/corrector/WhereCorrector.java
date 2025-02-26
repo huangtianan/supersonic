@@ -1,16 +1,13 @@
 package com.tencent.supersonic.headless.chat.corrector;
 
-
-import com.tencent.supersonic.common.pojo.Constants;
-import com.tencent.supersonic.common.util.StringUtil;
 import com.tencent.supersonic.common.jsqlparser.SqlAddHelper;
 import com.tencent.supersonic.common.jsqlparser.SqlReplaceHelper;
 import com.tencent.supersonic.headless.api.pojo.SchemaElement;
-import com.tencent.supersonic.headless.api.pojo.SchemaValueMap;
 import com.tencent.supersonic.headless.api.pojo.SemanticParseInfo;
 import com.tencent.supersonic.headless.api.pojo.SemanticSchema;
 import com.tencent.supersonic.headless.api.pojo.request.QueryFilters;
-import com.tencent.supersonic.headless.chat.QueryContext;
+import com.tencent.supersonic.headless.chat.ChatQueryContext;
+import com.tencent.supersonic.headless.chat.utils.QueryFilterParser;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Expression;
@@ -24,35 +21,30 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- * Perform SQL corrections on the "Where" section in S2SQL.
- */
+/** Perform SQL corrections on the "Where" section in S2SQL. */
 @Slf4j
 public class WhereCorrector extends BaseSemanticCorrector {
 
     @Override
-    public void doCorrect(QueryContext queryContext, SemanticParseInfo semanticParseInfo) {
-
-        addQueryFilter(queryContext, semanticParseInfo);
-
-        updateFieldValueByTechName(queryContext, semanticParseInfo);
+    public void doCorrect(ChatQueryContext chatQueryContext, SemanticParseInfo semanticParseInfo) {
+        addQueryFilter(chatQueryContext, semanticParseInfo);
+        updateFieldValueByTechName(chatQueryContext, semanticParseInfo);
     }
 
-    private void addQueryFilter(QueryContext queryContext, SemanticParseInfo semanticParseInfo) {
-        String queryFilter = getQueryFilter(queryContext.getQueryFilters());
-
-        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectS2SQL();
+    protected void addQueryFilter(ChatQueryContext chatQueryContext,
+            SemanticParseInfo semanticParseInfo) {
+        String queryFilter = getQueryFilter(chatQueryContext.getRequest().getQueryFilters());
+        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectedS2SQL();
 
         if (StringUtils.isNotEmpty(queryFilter)) {
             log.info("add queryFilter to correctS2SQL :{}", queryFilter);
-            Expression expression = null;
             try {
-                expression = CCJSqlParserUtil.parseCondExpression(queryFilter);
+                Expression expression = CCJSqlParserUtil.parseCondExpression(queryFilter);
+                correctS2SQL = SqlAddHelper.addWhere(correctS2SQL, expression);
+                semanticParseInfo.getSqlInfo().setCorrectedS2SQL(correctS2SQL);
             } catch (JSQLParserException e) {
                 log.error("parseCondExpression", e);
             }
-            correctS2SQL = SqlAddHelper.addWhere(correctS2SQL, expression);
-            semanticParseInfo.getSqlInfo().setCorrectS2SQL(correctS2SQL);
         }
     }
 
@@ -60,67 +52,48 @@ public class WhereCorrector extends BaseSemanticCorrector {
         if (Objects.isNull(queryFilters) || CollectionUtils.isEmpty(queryFilters.getFilters())) {
             return null;
         }
-        return queryFilters.getFilters().stream()
-                .map(filter -> {
-                    String bizNameWrap = StringUtil.getSpaceWrap(filter.getName());
-                    String operatorWrap = StringUtil.getSpaceWrap(filter.getOperator().getValue());
-                    String valueWrap = StringUtil.getCommaWrap(filter.getValue().toString());
-                    return bizNameWrap + operatorWrap + valueWrap;
-                })
-                .collect(Collectors.joining(Constants.AND_UPPER));
+        return QueryFilterParser.parse(queryFilters);
     }
 
-    private void updateFieldValueByTechName(QueryContext queryContext, SemanticParseInfo semanticParseInfo) {
-        SemanticSchema semanticSchema = queryContext.getSemanticSchema();
+    private void updateFieldValueByTechName(ChatQueryContext chatQueryContext,
+            SemanticParseInfo semanticParseInfo) {
+        SemanticSchema semanticSchema = chatQueryContext.getSemanticSchema();
         Long dataSetId = semanticParseInfo.getDataSetId();
         List<SchemaElement> dimensions = semanticSchema.getDimensions(dataSetId);
 
         if (CollectionUtils.isEmpty(dimensions)) {
             return;
         }
-
-        Map<String, Map<String, String>> aliasAndBizNameToTechName = getAliasAndBizNameToTechName(dimensions);
-        String correctS2SQL = SqlReplaceHelper.replaceValue(semanticParseInfo.getSqlInfo().getCorrectS2SQL(),
-                aliasAndBizNameToTechName);
-        semanticParseInfo.getSqlInfo().setCorrectS2SQL(correctS2SQL);
+        Map<String, Map<String, String>> aliasAndBizNameToTechName =
+                getAliasAndBizNameToTechName(dimensions);
+        String correctedS2SQL = semanticParseInfo.getSqlInfo().getCorrectedS2SQL();
+        String replaceSql =
+                SqlReplaceHelper.replaceValue(correctedS2SQL, aliasAndBizNameToTechName);
+        semanticParseInfo.getSqlInfo().setCorrectedS2SQL(replaceSql);
     }
 
-    private Map<String, Map<String, String>> getAliasAndBizNameToTechName(List<SchemaElement> dimensions) {
-        if (CollectionUtils.isEmpty(dimensions)) {
-            return new HashMap<>();
-        }
-
-        Map<String, Map<String, String>> result = new HashMap<>();
-
-        for (SchemaElement dimension : dimensions) {
-            if (Objects.isNull(dimension)
-                    || StringUtils.isEmpty(dimension.getName())
-                    || CollectionUtils.isEmpty(dimension.getSchemaValueMaps())) {
-                continue;
-            }
-            String name = dimension.getName();
-
-            Map<String, String> aliasAndBizNameToTechName = new HashMap<>();
-
-            for (SchemaValueMap valueMap : dimension.getSchemaValueMaps()) {
-                if (Objects.isNull(valueMap) || StringUtils.isEmpty(valueMap.getTechName())) {
-                    continue;
-                }
-                if (StringUtils.isNotEmpty(valueMap.getBizName())) {
-                    aliasAndBizNameToTechName.put(valueMap.getBizName(), valueMap.getTechName());
-                }
-                if (!CollectionUtils.isEmpty(valueMap.getAlias())) {
-                    valueMap.getAlias().stream().forEach(alias -> {
-                        if (StringUtils.isNotEmpty(alias)) {
-                            aliasAndBizNameToTechName.put(alias, valueMap.getTechName());
-                        }
-                    });
-                }
-            }
-            if (!CollectionUtils.isEmpty(aliasAndBizNameToTechName)) {
-                result.put(name, aliasAndBizNameToTechName);
-            }
-        }
-        return result;
+    private Map<String, Map<String, String>> getAliasAndBizNameToTechName(
+            List<SchemaElement> dimensions) {
+        return dimensions.stream()
+                .filter(dimension -> Objects.nonNull(dimension)
+                        && StringUtils.isNotEmpty(dimension.getName())
+                        && !CollectionUtils.isEmpty(dimension.getSchemaValueMaps()))
+                .collect(Collectors.toMap(SchemaElement::getName,
+                        dimension -> dimension.getSchemaValueMaps().stream()
+                                .filter(valueMap -> Objects.nonNull(valueMap)
+                                        && StringUtils.isNotEmpty(valueMap.getTechName()))
+                                .flatMap(valueMap -> {
+                                    Map<String, String> map = new HashMap<>();
+                                    if (StringUtils.isNotEmpty(valueMap.getBizName())) {
+                                        map.put(valueMap.getBizName(), valueMap.getTechName());
+                                    }
+                                    if (!CollectionUtils.isEmpty(valueMap.getAlias())) {
+                                        valueMap.getAlias().stream().filter(StringUtils::isNotEmpty)
+                                                .forEach(alias -> map.put(alias,
+                                                        valueMap.getTechName()));
+                                    }
+                                    return map.entrySet().stream();
+                                }).collect(
+                                        Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
     }
 }

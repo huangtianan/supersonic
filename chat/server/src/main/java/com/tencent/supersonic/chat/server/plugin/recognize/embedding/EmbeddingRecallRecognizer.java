@@ -1,12 +1,12 @@
 package com.tencent.supersonic.chat.server.plugin.recognize.embedding;
 
 import com.google.common.collect.Lists;
-import com.tencent.supersonic.chat.server.plugin.ParseMode;
 import com.tencent.supersonic.chat.server.plugin.ChatPlugin;
+import com.tencent.supersonic.chat.server.plugin.ParseMode;
 import com.tencent.supersonic.chat.server.plugin.PluginManager;
 import com.tencent.supersonic.chat.server.plugin.PluginRecallResult;
 import com.tencent.supersonic.chat.server.plugin.recognize.PluginRecognizer;
-import com.tencent.supersonic.chat.server.pojo.ChatParseContext;
+import com.tencent.supersonic.chat.server.pojo.ParseContext;
 import com.tencent.supersonic.common.util.ContextUtils;
 import dev.langchain4j.store.embedding.Retrieval;
 import dev.langchain4j.store.embedding.RetrieveQueryResult;
@@ -20,31 +20,30 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * EmbeddingRecallParser is an implementation of a recall plugin based on Embedding
- */
+/** EmbeddingRecallParser is an implementation of a recall plugin based on Embedding */
 @Slf4j
 public class EmbeddingRecallRecognizer extends PluginRecognizer {
 
-    public boolean checkPreCondition(ChatParseContext chatParseContext) {
-        List<ChatPlugin> plugins = getPluginList(chatParseContext);
+    public boolean checkPreCondition(ParseContext parseContext) {
+        List<ChatPlugin> plugins = getPluginList(parseContext);
         return !CollectionUtils.isEmpty(plugins);
     }
 
-    public PluginRecallResult recallPlugin(ChatParseContext chatParseContext) {
-        String text = chatParseContext.getQueryText();
+    public PluginRecallResult recallPlugin(ParseContext parseContext) {
+        String text = parseContext.getRequest().getQueryText();
         List<Retrieval> embeddingRetrievals = embeddingRecall(text);
         if (CollectionUtils.isEmpty(embeddingRetrievals)) {
             return null;
         }
-        List<ChatPlugin> plugins = getPluginList(chatParseContext);
-        Map<Long, ChatPlugin> pluginMap = plugins.stream().collect(Collectors.toMap(ChatPlugin::getId, p -> p));
+        List<ChatPlugin> plugins = getPluginList(parseContext);
+        Map<Long, ChatPlugin> pluginMap =
+                plugins.stream().collect(Collectors.toMap(ChatPlugin::getId, p -> p));
         for (Retrieval embeddingRetrieval : embeddingRetrievals) {
             ChatPlugin plugin = pluginMap.get(Long.parseLong(embeddingRetrieval.getId()));
             if (plugin == null) {
                 continue;
             }
-            Pair<Boolean, Set<Long>> pair = PluginManager.resolve(plugin, chatParseContext);
+            Pair<Boolean, Set<Long>> pair = PluginManager.resolve(plugin, parseContext);
             log.info("embedding plugin resolve: {}", pair);
             if (pair.getLeft()) {
                 Set<Long> dataSetList = pair.getRight();
@@ -52,10 +51,10 @@ public class EmbeddingRecallRecognizer extends PluginRecognizer {
                     continue;
                 }
                 plugin.setParseMode(ParseMode.EMBEDDING_RECALL);
-                double distance = embeddingRetrieval.getDistance();
-                double score = chatParseContext.getQueryText().length() * (1 - distance);
-                return PluginRecallResult.builder()
-                        .plugin(plugin).dataSetIds(dataSetList).score(score).distance(distance).build();
+                double similarity = embeddingRetrieval.getSimilarity();
+                double score = parseContext.getRequest().getQueryText().length() * similarity;
+                return PluginRecallResult.builder().plugin(plugin).dataSetIds(dataSetList)
+                        .score(score).distance(similarity).build();
             }
         }
         return null;
@@ -68,8 +67,9 @@ public class EmbeddingRecallRecognizer extends PluginRecognizer {
 
             List<Retrieval> embeddingRetrievals = embeddingResp.getRetrieval();
             if (!CollectionUtils.isEmpty(embeddingRetrievals)) {
-                embeddingRetrievals = embeddingRetrievals.stream().sorted(Comparator.comparingDouble(o ->
-                        Math.abs(o.getDistance()))).collect(Collectors.toList());
+                embeddingRetrievals = embeddingRetrievals.stream()
+                        .sorted(Comparator.comparingDouble(o -> Math.abs(o.getSimilarity())))
+                        .collect(Collectors.toList());
                 embeddingResp.setRetrieval(embeddingRetrievals);
             }
             return embeddingRetrievals;
@@ -78,5 +78,4 @@ public class EmbeddingRecallRecognizer extends PluginRecognizer {
         }
         return Lists.newArrayList();
     }
-
 }

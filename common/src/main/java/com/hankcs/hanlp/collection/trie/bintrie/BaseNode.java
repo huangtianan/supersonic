@@ -256,7 +256,8 @@ public abstract class BaseNode<V> implements Comparable<BaseNode> {
         WORD_END_3,
     }
 
-    public class TrieEntry extends AbstractMap.SimpleEntry<String, V> implements Comparable<TrieEntry> {
+    public class TrieEntry extends AbstractMap.SimpleEntry<String, V>
+            implements Comparable<TrieEntry> {
 
         public TrieEntry(String key, V value) {
             super(key, value);
@@ -270,37 +271,28 @@ public abstract class BaseNode<V> implements Comparable<BaseNode> {
 
     @Override
     public String toString() {
-        return "BaseNode{"
-                + "child="
-                + Arrays.toString(child)
-                + ", status="
-                + status
-                + ", c="
-                + c
-                + ", value="
-                + value
-                + ", prefix='"
-                + prefix
-                + '\''
-                + '}';
+        return "BaseNode{" + "child=" + Arrays.toString(child) + ", status=" + status + ", c=" + c
+                + ", value=" + value + ", prefix='" + prefix + '\'' + '}';
     }
 
-    public void walkNode(Set<Map.Entry<String, V>> entrySet) {
+    public void walkNode(Set<Map.Entry<String, V>> entrySet, Set<Long> modelIdOrDataSetIds) {
         if (status == Status.WORD_MIDDLE_2 || status == Status.WORD_END_3) {
             log.debug("walkNode before:{}", value.toString());
-            List natures = new LoadRemoveService().removeNatures((List) value);
+            List natures = new LoadRemoveService().removeNatures((List) value, modelIdOrDataSetIds);
             String name = this.prefix != null ? this.prefix + c : "" + c;
             log.debug("walkNode name:{},after:{},natures:{}", name, (List) value, natures);
             entrySet.add(new TrieEntry(name, (V) natures));
         }
     }
 
-    /***
-     * walk limit
+    /**
+     * * walk limit
+     *
      * @param sb
      * @param entrySet
      */
-    public void walkLimit(StringBuilder sb, Set<Map.Entry<String, V>> entrySet) {
+    public void walkLimit(StringBuilder sb, Set<Map.Entry<String, V>> entrySet,
+            Set<Long> modelIdOrDataSetIds) {
         Queue<BaseNode> queue = new ArrayDeque<>();
         this.prefix = sb.toString();
         queue.add(this);
@@ -309,7 +301,7 @@ public abstract class BaseNode<V> implements Comparable<BaseNode> {
             if (root == null) {
                 continue;
             }
-            root.walkNode(entrySet);
+            root.walkNode(entrySet, modelIdOrDataSetIds);
             if (root.child == null) {
                 continue;
             }
@@ -322,5 +314,4 @@ public abstract class BaseNode<V> implements Comparable<BaseNode> {
             }
         }
     }
-
 }

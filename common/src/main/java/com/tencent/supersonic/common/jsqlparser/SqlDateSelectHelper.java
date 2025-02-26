@@ -1,20 +1,18 @@
 package com.tencent.supersonic.common.jsqlparser;
 
-import com.tencent.supersonic.common.pojo.enums.TimeDimensionEnum;
-
-import java.util.List;
-import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 
-/**
- * Date field parsing helper class
- */
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
+/** Date field parsing helper class */
 @Slf4j
 public class SqlDateSelectHelper {
 
-    public static DateVisitor.DateBoundInfo getDateBoundInfo(String sql) {
+    public static DateVisitor.DateBoundInfo getDateBoundInfo(String sql, String dateField) {
         List<PlainSelect> plainSelectList = SqlSelectHelper.getPlainSelect(sql);
         if (plainSelectList.size() != 1) {
             return null;
@@ -27,9 +25,8 @@ public class SqlDateSelectHelper {
         if (Objects.isNull(where)) {
             return null;
         }
-        DateVisitor dateVisitor = new DateVisitor(TimeDimensionEnum.getChNameList());
+        DateVisitor dateVisitor = new DateVisitor(Collections.singletonList(dateField));
         where.accept(dateVisitor);
         return dateVisitor.getDateBoundInfo();
     }
 }
-

@@ -3,6 +3,9 @@ import { NumericUnit } from '../common/constants';
 import { isString } from 'lodash';
 
 export function formatByDecimalPlaces(value: number | string, decimalPlaces: number) {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
   if (isNaN(+value) || decimalPlaces < 0 || decimalPlaces > 100) {
     return value;
   }
@@ -17,6 +20,9 @@ export function formatByDecimalPlaces(value: number | string, decimalPlaces: num
 }
 
 export function formatByThousandSeperator(value: number | string) {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
   if (isNaN(+value)) {
     return value;
   }
@@ -70,13 +76,13 @@ export const getFormattedValue = (value: number | string, remainZero?: boolean) 
     +value >= 100000000
       ? NumericUnit.OneHundredMillion
       : +value >= 10000
-        ? NumericUnit.TenThousand
-        : NumericUnit.None;
+      ? NumericUnit.TenThousand
+      : NumericUnit.None;
 
   let formattedValue = formatByUnit(value, unit);
   formattedValue = formatByDecimalPlaces(
     formattedValue,
-    unit === NumericUnit.OneHundredMillion ? 2 : +value < 1 ? 3 : 1,
+    unit === NumericUnit.OneHundredMillion ? 2 : +value < 1 ? 3 : 1
   );
   formattedValue = formatByThousandSeperator(formattedValue);
   if ((typeof formattedValue === 'number' && isNaN(formattedValue)) || +formattedValue === 0) {
@@ -88,11 +94,11 @@ export const getFormattedValue = (value: number | string, remainZero?: boolean) 
 export const formatNumberWithCN = (num: number) => {
   if (isNaN(num)) return '-';
   if (num >= 10000) {
-    return (num / 10000).toFixed(1) + "万";
+    return (num / 10000).toFixed(1) + '万';
   } else {
     return formatByDecimalPlaces(num, 2);
   }
-}
+};
 
 export const groupByColumn = (data: any[], column: string) => {
   return data.reduce((result, item) => {
@@ -124,11 +130,15 @@ export const normalizeTrendData = (
   valueColumnName: string,
   startDate: string,
   endDate: string,
-  dateType?: string,
+  dateType?: string
 ) => {
   const dateList = enumerateDaysBetweenDates(moment(startDate), moment(endDate), dateType);
-  const result = dateList.map((date) => {
-    const item = resultList.find((result) => moment(result[dateColumnName]).format(dateType === 'months' ? 'YYYY-MM' : 'YYYY-MM-DD') === date);
+  const result = dateList.map(date => {
+    const item = resultList.find(
+      result =>
+        moment(result[dateColumnName]).format(dateType === 'months' ? 'YYYY-MM' : 'YYYY-MM-DD') ===
+        date
+    );
     return {
       ...(item || {}),
       [dateColumnName]: date,
@@ -139,7 +149,7 @@ export const normalizeTrendData = (
 };
 
 export const getMinMaxDate = (resultList: any[], dateColumnName: string) => {
-  const dateList = resultList.map((item) => moment(item[dateColumnName]));
+  const dateList = resultList.map(item => moment(item[dateColumnName]));
   return [moment.min(dateList).format('YYYY-MM-DD'), moment.max(dateList).format('YYYY-MM-DD')];
 };
 
@@ -147,10 +157,10 @@ export function hexToRgbObj(hex) {
   var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16),
-    }
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
     : null;
 }
 
@@ -176,7 +186,6 @@ export const isMobile = window.navigator.userAgent.match(/(iPhone|iPod|Android|i
 export const isIOS = window.navigator.userAgent.match(/(iPhone|iPod|ios)/i);
 
 export const isAndroid = window.navigator.userAgent.match(/(Android)/i);
-
 
 export function isProd() {
   return process.env.NODE_ENV === 'production';
@@ -248,7 +257,7 @@ export const getTextWidth = (
   text: string,
   fontSize: string = '16px',
   fontWeight: string = 'normal',
-  fontFamily: string = 'DINPro Medium',
+  fontFamily: string = 'DINPro Medium'
 ): number => {
   const canvas = utilCanvas || (utilCanvas = document.createElement('canvas'));
   const context = canvas.getContext('2d');
@@ -270,4 +279,60 @@ export function jsonParse(config: any, defaultReturn?: any) {
     console.log(error);
     return defaultReturn;
   }
+}
+
+/**
+ * 导出文本文件的函数
+ * @param content - 要导出的文本内容
+ * @param fileName - 导出的文件名
+ * @param mimeType - 文件的 MIME 类型，默认为 'text/plain'
+ */
+export function exportTextFile(content: string, fileName: string, mimeType: string = 'text/plain') {
+  // 创建一个 Blob 对象
+  const blob = new Blob([content], { type: mimeType });
+
+  // 创建一个 URL 对象
+  const url = URL.createObjectURL(blob);
+
+  // 创建一个 <a> 元素
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+
+  // 触发下载
+  document.body.appendChild(a);
+  a.click();
+
+  // 移除 <a> 元素
+  document.body.removeChild(a);
+
+  // 释放 URL 对象
+  URL.revokeObjectURL(url);
+}
+
+function replacer(key: string, value: any) {
+  return value === null ? '' : value; // 将null值转换为空字符串
+}
+
+export function exportCsvFile(data: any[]) {
+  // 生成CSV内容
+  const csvRows: any[] = [];
+  const headers = Object.keys(data[0]);
+  csvRows.push(headers.join(',')); // 添加表头
+
+  for (const row of data) {
+    csvRows.push(headers.map(header => JSON.stringify(row[header], replacer)).join(','));
+  }
+
+  // 创建Blob并下载文件
+  const csvString = '\ufeff' + csvRows.join('\n');
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'data.csv'; // 指定下载文件名
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url); // 释放Blob URL
 }

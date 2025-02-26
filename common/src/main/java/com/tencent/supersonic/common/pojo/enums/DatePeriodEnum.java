@@ -1,11 +1,8 @@
 package com.tencent.supersonic.common.pojo.enums;
 
 public enum DatePeriodEnum {
-    DAY("日"),
-    WEEK("周"),
-    MONTH("月"),
-    QUARTER("季度"),
-    YEAR("年");
+    DAY("天"), WEEK("周"), MONTH("月"), QUARTER("季度"), YEAR("年");
+
     private String chName;
 
     DatePeriodEnum(String chName) {
@@ -25,4 +22,12 @@ public enum DatePeriodEnum {
         return null;
     }
 
+    public static DatePeriodEnum fromChName(String chName) {
+        for (DatePeriodEnum value : values()) {
+            if (value.chName.equals(chName)) {
+                return value;
+            }
+        }
+        return null;
+    }
 }

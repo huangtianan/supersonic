@@ -1,4 +1,4 @@
-import { formatByDecimalPlaces, getFormattedValue } from '../../../utils/utils';
+import { formatByDecimalPlaces, formatByThousandSeperator } from '../../../utils/utils';
 import { Table as AntTable } from 'antd';
 import { MsgDataType } from '../../../common/type';
 import { CLS_PREFIX } from '../../../common/constants';
@@ -9,21 +9,28 @@ import moment from 'moment';
 type Props = {
   data: MsgDataType;
   size?: SizeType;
+  question?: string;
   loading?: boolean;
   onApplyAuth?: (model: string) => void;
 };
 
-const Table: React.FC<Props> = ({ data, size, loading, onApplyAuth }) => {
+const Table: React.FC<Props> = ({ data, size, loading, question, onApplyAuth }) => {
   const { entityInfo, queryColumns, queryResults } = data;
 
   const prefixCls = `${CLS_PREFIX}-table`;
-
   const tableColumns: any[] = queryColumns.map(
-    ({ name, nameEn, showType, dataFormatType, dataFormat, authorized }) => {
+    ({ name, bizName, showType, dataFormatType, dataFormat, authorized }) => {
       return {
-        dataIndex: nameEn,
-        key: nameEn,
-        title: name || nameEn,
+        dataIndex: bizName,
+        key: bizName,
+        title: name || bizName,
+        defaultSortOrder: 'descend',
+        sorter:
+          showType === 'NUMBER'
+            ? (a, b) => {
+                return a[bizName] - b[bizName];
+              }
+            : undefined,
         render: (value: string | number) => {
           if (!authorized) {
             return (
@@ -47,11 +54,12 @@ const Table: React.FC<Props> = ({ data, size, loading, onApplyAuth }) => {
           if (showType === 'NUMBER') {
             return (
               <div className={`${prefixCls}-formatted-value`}>
-                {getFormattedValue(value as number)}
+                {/* {getFormattedValue(value as number)} */}
+                {formatByThousandSeperator(value)}
               </div>
             );
           }
-          if (nameEn.includes('photo')) {
+          if (bizName.includes('photo')) {
             return (
               <div className={`${prefixCls}-photo`}>
                 <img width={40} height={40} src={value as string} alt="" />
@@ -70,11 +78,16 @@ const Table: React.FC<Props> = ({ data, size, loading, onApplyAuth }) => {
 
   const dateColumn = queryColumns.find(column => column.type === 'DATE');
   const dataSource = dateColumn
-    ? queryResults.sort((a, b) => moment(a[dateColumn.nameEn]).diff(moment(b[dateColumn.nameEn])))
+    ? queryResults.sort((a, b) => moment(a[dateColumn.bizName]).diff(moment(b[dateColumn.bizName])))
     : queryResults;
-
   return (
     <div className={prefixCls}>
+      {question && (
+        <div className={`${prefixCls}-top-bar`}>
+          <div className={`${prefixCls}-indicator-name`}>{question}</div>
+        </div>
+      )}
+
       <AntTable
         pagination={
           queryResults.length <= 10 ? false : { defaultPageSize: 10, position: ['bottomCenter'] }

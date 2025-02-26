@@ -17,6 +17,8 @@ public class ChatMemoryFilter {
 
     private Integer agentId;
 
+    private Long queryId;
+
     private String question;
 
     private List<String> questions;
@@ -27,4 +29,10 @@ public class ChatMemoryFilter {
 
     private MemoryReviewResult humanReviewRet;
 
+    private String sort = "desc";
+    private String orderCondition;
+
+    public boolean isAsc() {
+        return "asc".equalsIgnoreCase(sort);
+    }
 }

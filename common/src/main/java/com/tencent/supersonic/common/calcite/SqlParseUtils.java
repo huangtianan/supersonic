@@ -1,13 +1,5 @@
 package com.tencent.supersonic.common.calcite;
 
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.calcite.sql.SqlBasicCall;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlIdentifier;
@@ -25,9 +17,15 @@ import org.apache.calcite.sql.util.SqlString;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * sql parse utils
- */
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/** sql parse utils */
 public class SqlParseUtils {
 
     /**
@@ -44,10 +42,11 @@ public class SqlParseUtils {
 
             handlerSQL(sqlNode, sqlParserInfo);
 
-            sqlParserInfo.setAllFields(sqlParserInfo.getAllFields().stream().distinct().collect(Collectors.toList()));
+            sqlParserInfo.setAllFields(
+                    sqlParserInfo.getAllFields().stream().distinct().collect(Collectors.toList()));
 
-            sqlParserInfo.setSelectFields(
-                    sqlParserInfo.getSelectFields().stream().distinct().collect(Collectors.toList()));
+            sqlParserInfo.setSelectFields(sqlParserInfo.getSelectFields().stream().distinct()
+                    .collect(Collectors.toList()));
 
             return sqlParserInfo;
         } catch (SqlParseException e) {
@@ -116,7 +115,6 @@ public class SqlParseUtils {
 
         Set<String> selectFields = handlerSelectField(sqlSelect);
         allFields.addAll(selectFields);
-
     }
 
     private static Set<String> handlerSelectField(SqlSelect sqlSelect) {
@@ -144,7 +142,6 @@ public class SqlParseUtils {
             group.forEach(groupField -> {
                 Set<String> groupByFields = handlerField(groupField);
                 results.addAll(groupByFields);
-
             });
         }
         return results;
@@ -232,10 +229,11 @@ public class SqlParseUtils {
                 if (CollectionUtils.isNotEmpty(operandList) && operandList.size() == 1) {
                     SqlIdentifier sqlIdentifier = (SqlIdentifier) operandList.get(0);
                     String simple = sqlIdentifier.getSimple();
-                    SqlBasicCall aliasedNode = new SqlBasicCall(
-                            SqlStdOperatorTable.AS,
-                            new SqlNode[]{sqlBasicCall, new SqlIdentifier(simple.toLowerCase(), SqlParserPos.ZERO)},
-                            SqlParserPos.ZERO);
+                    SqlBasicCall aliasedNode =
+                            new SqlBasicCall(SqlStdOperatorTable.AS,
+                                    new SqlNode[] {sqlBasicCall, new SqlIdentifier(
+                                            simple.toLowerCase(), SqlParserPos.ZERO)},
+                                    SqlParserPos.ZERO);
                     selectList.set(selectList.indexOf(node), aliasedNode);
                 }
             }
@@ -245,7 +243,8 @@ public class SqlParseUtils {
         return newSql.getSql().replaceAll("`", "");
     }
 
-    public static String addFieldsToSql(String sql, List<String> addFields) throws SqlParseException {
+    public static String addFieldsToSql(String sql, List<String> addFields)
+            throws SqlParseException {
         if (CollectionUtils.isEmpty(addFields)) {
             return sql;
         }
@@ -335,8 +334,8 @@ public class SqlParseUtils {
             SqlNode sqlNodeCase = parser.parseExpression();
             if (sqlNodeCase instanceof SqlCase) {
                 SqlCase sqlCase = (SqlCase) sqlNodeCase;
-                if (CollectionUtils.isEmpty(sqlCase.getThenOperands()) || CollectionUtils.isEmpty(
-                        sqlCase.getWhenOperands())) {
+                if (CollectionUtils.isEmpty(sqlCase.getThenOperands())
+                        || CollectionUtils.isEmpty(sqlCase.getWhenOperands())) {
                     return ret;
                 }
                 SqlDialect dialect = new S2MysqlSqlDialect(S2MysqlSqlDialect.DEFAULT_CONTEXT);
@@ -346,10 +345,12 @@ public class SqlParseUtils {
                         SqlBasicCall when = (SqlBasicCall) sqlNode;
                         if (!org.springframework.util.CollectionUtils.isEmpty(when.getOperandList())
                                 && when.getOperandList().size() > 1) {
-                            String value = when.getOperandList().get(1).toSqlString(dialect).getSql();
+                            String value =
+                                    when.getOperandList().get(1).toSqlString(dialect).getSql();
                             if (sqlCase.getThenOperands().get(i) != null) {
                                 if (sqlCase.getThenOperands().get(i) instanceof SqlIdentifier) {
-                                    SqlIdentifier sqlIdentifier = (SqlIdentifier) sqlCase.getThenOperands().get(i);
+                                    SqlIdentifier sqlIdentifier =
+                                            (SqlIdentifier) sqlCase.getThenOperands().get(i);
                                     String field = sqlIdentifier.getSimple();
                                     ret.put(value, field);
                                 }
@@ -364,6 +365,4 @@ public class SqlParseUtils {
         }
         return ret;
     }
-
 }
-

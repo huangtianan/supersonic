@@ -30,10 +30,6 @@ public class DataSetResp extends SchemaItem {
 
     private QueryConfig queryConfig = new QueryConfig();
 
-    private List<TagItem> allMetrics = new ArrayList<>();
-
-    private List<TagItem> allDimensions = new ArrayList<>();
-
     public List<Long> metricIds() {
         return getDataSetModelConfigs().stream().map(DataSetModelConfig::getMetrics)
                 .flatMap(Collection::stream).collect(Collectors.toList());
@@ -51,15 +47,14 @@ public class DataSetResp extends SchemaItem {
 
     public List<Long> getAllIncludeAllModels() {
         return getDataSetModelConfigs().stream().filter(DataSetModelConfig::getIncludesAll)
-                .map(DataSetModelConfig::getId)
-                .collect(Collectors.toList());
+                .map(DataSetModelConfig::getId).collect(Collectors.toList());
     }
 
     private List<DataSetModelConfig> getDataSetModelConfigs() {
-        if (dataSetDetail == null || CollectionUtils.isEmpty(dataSetDetail.getDataSetModelConfigs())) {
+        if (dataSetDetail == null
+                || CollectionUtils.isEmpty(dataSetDetail.getDataSetModelConfigs())) {
             return Lists.newArrayList();
         }
         return dataSetDetail.getDataSetModelConfigs();
     }
-
 }

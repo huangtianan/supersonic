@@ -1,29 +1,22 @@
 package com.tencent.supersonic.common.jsqlparser;
 
 import com.tencent.supersonic.common.pojo.enums.DatePeriodEnum;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
-import net.sf.jsqlparser.expression.operators.relational.ComparisonOperator;
-import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
-import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
-import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
-import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
-import net.sf.jsqlparser.expression.operators.relational.InExpression;
-import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
-import net.sf.jsqlparser.expression.operators.relational.MinorThan;
-import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.*;
 import net.sf.jsqlparser.schema.Column;
 import org.apache.commons.collections.CollectionUtils;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class FieldAndValueAcquireVisitor extends ExpressionVisitorAdapter {
 
@@ -31,6 +24,29 @@ public class FieldAndValueAcquireVisitor extends ExpressionVisitorAdapter {
 
     public FieldAndValueAcquireVisitor(Set<FieldExpression> fieldExpressions) {
         this.fieldExpressions = fieldExpressions;
+    }
+
+    public void visit(Between between) {
+        Expression leftExpression = between.getLeftExpression();
+        String columnName = null;
+        if (leftExpression instanceof Column) {
+            Column column = (Column) leftExpression;
+            columnName = column.getColumnName();
+        }
+        Expression betweenExpressionStart = between.getBetweenExpressionStart();
+        Expression betweenExpressionEnd = between.getBetweenExpressionEnd();
+
+        FieldExpression fieldExpressionStart = new FieldExpression();
+        fieldExpressionStart.setFieldName(columnName);
+        fieldExpressionStart.setFieldValue(getFieldValue(betweenExpressionStart));
+        fieldExpressionStart.setOperator(JsqlConstants.GREATER_THAN_EQUALS);
+        fieldExpressions.add(fieldExpressionStart);
+
+        FieldExpression fieldExpressionEnd = new FieldExpression();
+        fieldExpressionEnd.setFieldName(columnName);
+        fieldExpressionEnd.setFieldValue(getFieldValue(betweenExpressionEnd));
+        fieldExpressionEnd.setOperator(JsqlConstants.MINOR_THAN_EQUALS);
+        fieldExpressions.add(fieldExpressionEnd);
     }
 
     public void visit(LikeExpression expr) {
@@ -124,14 +140,16 @@ public class FieldAndValueAcquireVisitor extends ExpressionVisitorAdapter {
             fieldExpression.setFieldName(field.getColumnName());
             fieldExpression.setFunction(functionName);
             fieldExpression.setOperator(expr.getStringExpression());
-            //deal with DAY/WEEK function
-            List<DatePeriodEnum> collect = Arrays.stream(DatePeriodEnum.values()).collect(Collectors.toList());
+            // deal with DAY/WEEK function
+            List<DatePeriodEnum> collect =
+                    Arrays.stream(DatePeriodEnum.values()).collect(Collectors.toList());
             DatePeriodEnum periodEnum = DatePeriodEnum.get(functionName);
             if (Objects.nonNull(periodEnum) && collect.contains(periodEnum)) {
-                fieldExpression.setFieldValue(getFieldValue(rightExpression) + periodEnum.getChName());
+                fieldExpression
+                        .setFieldValue(getFieldValue(rightExpression) + periodEnum.getChName());
                 return fieldExpression;
             } else {
-                //deal with aggregate function
+                // deal with aggregate function
                 fieldExpression.setFieldValue(getFieldValue(rightExpression));
                 return fieldExpression;
             }
@@ -142,7 +160,8 @@ public class FieldAndValueAcquireVisitor extends ExpressionVisitorAdapter {
     }
 
     private Column getColumn(Function leftExpressionFunction) {
-        //List<Expression> leftExpressions = leftExpressionFunction.getParameters().getExpressions();
+        // List<Expression> leftExpressions =
+        // leftExpressionFunction.getParameters().getExpressions();
         ExpressionList<?> leftExpressions = leftExpressionFunction.getParameters();
         if (CollectionUtils.isEmpty(leftExpressions)) {
             return null;

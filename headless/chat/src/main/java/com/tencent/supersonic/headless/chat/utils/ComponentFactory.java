@@ -1,42 +1,43 @@
 package com.tencent.supersonic.headless.chat.utils;
 
 import com.tencent.supersonic.common.util.ContextUtils;
+import com.tencent.supersonic.headless.chat.corrector.SemanticCorrector;
+import com.tencent.supersonic.headless.chat.mapper.SchemaMapper;
+import com.tencent.supersonic.headless.chat.parser.SemanticParser;
 import com.tencent.supersonic.headless.chat.parser.llm.DataSetResolver;
-import com.tencent.supersonic.headless.chat.parser.llm.JavaLLMProxy;
-import com.tencent.supersonic.headless.chat.parser.llm.LLMProxy;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.collections.CollectionUtils;
 import org.springframework.core.io.support.SpringFactoriesLoader;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
- * HeadlessConverter QueryOptimizer QueryExecutor object factory
+ * QueryConverter QueryOptimizer QueryExecutor object factory
  */
 @Slf4j
 public class ComponentFactory {
-
-    private static LLMProxy llmProxy;
+    private static List<SchemaMapper> schemaMappers = new ArrayList<>();
+    private static List<SemanticParser> semanticParsers = new ArrayList<>();
+    private static List<SemanticCorrector> semanticCorrectors = new ArrayList<>();
     private static DataSetResolver modelResolver;
 
-    public static LLMProxy getLLMProxy() {
-        //1.Preferentially retrieve from environment variables
-        String llmProxyEnv = System.getenv("llmProxy");
-        if (StringUtils.isNotBlank(llmProxyEnv)) {
-            Map<String, LLMProxy> implementations = ContextUtils.getBeansOfType(LLMProxy.class);
-            llmProxy = implementations.entrySet().stream()
-                    .filter(entry -> entry.getKey().equalsIgnoreCase(llmProxyEnv))
-                    .map(Map.Entry::getValue)
-                    .findFirst()
-                    .orElse(null);
-        }
-        //2.default JavaLLMProxy
-        if (Objects.isNull(llmProxy)) {
-            llmProxy = ContextUtils.getBean(JavaLLMProxy.class);
-        }
-        return llmProxy;
+    public static List<SchemaMapper> getSchemaMappers() {
+        return CollectionUtils.isEmpty(schemaMappers) ? init(SchemaMapper.class, schemaMappers)
+                : schemaMappers;
+    }
+
+    public static List<SemanticParser> getSemanticParsers() {
+        return CollectionUtils.isEmpty(semanticParsers)
+                ? init(SemanticParser.class, semanticParsers)
+                : semanticParsers;
+    }
+
+    public static List<SemanticCorrector> getSemanticCorrectors() {
+        return CollectionUtils.isEmpty(semanticCorrectors)
+                ? init(SemanticCorrector.class, semanticCorrectors)
+                : semanticCorrectors;
     }
 
     public static DataSetResolver getModelResolver() {
@@ -50,15 +51,14 @@ public class ComponentFactory {
         return ContextUtils.getContext().getBean(name, tClass);
     }
 
-    private static <T> List<T> init(Class<T> factoryType, List list) {
+    protected static <T> List<T> init(Class<T> factoryType, List list) {
         list.addAll(SpringFactoriesLoader.loadFactories(factoryType,
                 Thread.currentThread().getContextClassLoader()));
         return list;
     }
 
-    private static <T> T init(Class<T> factoryType) {
-        return SpringFactoriesLoader.loadFactories(factoryType,
-                Thread.currentThread().getContextClassLoader()).get(0);
+    protected static <T> T init(Class<T> factoryType) {
+        return SpringFactoriesLoader
+                .loadFactories(factoryType, Thread.currentThread().getContextClassLoader()).get(0);
     }
-
 }

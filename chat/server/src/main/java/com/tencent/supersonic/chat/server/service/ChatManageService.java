@@ -1,18 +1,18 @@
 package com.tencent.supersonic.chat.server.service;
 
 import com.github.pagehelper.PageInfo;
-import com.tencent.supersonic.auth.api.authentication.pojo.User;
 import com.tencent.supersonic.chat.api.pojo.request.ChatExecuteReq;
 import com.tencent.supersonic.chat.api.pojo.request.ChatParseReq;
 import com.tencent.supersonic.chat.api.pojo.request.PageQueryInfoReq;
+import com.tencent.supersonic.chat.api.pojo.response.ChatParseResp;
 import com.tencent.supersonic.chat.api.pojo.response.QueryResp;
+import com.tencent.supersonic.chat.api.pojo.response.QueryResult;
 import com.tencent.supersonic.chat.api.pojo.response.ShowCaseResp;
 import com.tencent.supersonic.chat.server.persistence.dataobject.ChatDO;
 import com.tencent.supersonic.chat.server.persistence.dataobject.ChatParseDO;
 import com.tencent.supersonic.chat.server.persistence.dataobject.ChatQueryDO;
+import com.tencent.supersonic.common.pojo.User;
 import com.tencent.supersonic.headless.api.pojo.SemanticParseInfo;
-import com.tencent.supersonic.headless.api.pojo.response.ParseResp;
-import com.tencent.supersonic.headless.api.pojo.response.QueryResult;
 
 import java.util.List;
 
@@ -23,7 +23,7 @@ public interface ChatManageService {
 
     boolean updateChatName(Long chatId, String chatName, String userName);
 
-    boolean updateFeedback(Integer id, Integer score, String feedback);
+    boolean updateFeedback(Long id, Integer score, String feedback);
 
     boolean updateChatIsTop(Long chatId, int isTop);
 
@@ -31,9 +31,11 @@ public interface ChatManageService {
 
     PageInfo<QueryResp> queryInfo(PageQueryInfoReq pageQueryInfoReq, long chatId);
 
-    void createChatQuery(ChatParseReq chatParseReq, ParseResp parseResp);
+    Long createChatQuery(ChatParseReq chatParseReq);
 
     QueryResp getChatQuery(Long queryId);
+
+    List<QueryResp> getChatQueries(Integer chatId);
 
     ShowCaseResp queryShowCase(PageQueryInfoReq pageQueryInfoReq, int agentId);
 
@@ -41,9 +43,11 @@ public interface ChatManageService {
 
     int updateQuery(ChatQueryDO chatQueryDO);
 
-    void updateParseCostTime(ParseResp parseResp);
+    void deleteQuery(Long queryId);
 
-    List<ChatParseDO> batchAddParse(ChatParseReq chatParseReq, ParseResp parseResult);
+    void updateParseCostTime(ChatParseResp chatParseResp);
+
+    List<ChatParseDO> batchAddParse(ChatParseReq chatParseReq, ChatParseResp chatParseResp);
 
     SemanticParseInfo getParseInfo(Long questionId, int parseId);
 }

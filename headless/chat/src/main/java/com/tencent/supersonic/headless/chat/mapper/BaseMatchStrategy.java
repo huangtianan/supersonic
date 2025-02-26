@@ -1,86 +1,52 @@
 package com.tencent.supersonic.headless.chat.mapper;
 
-
 import com.tencent.supersonic.headless.api.pojo.enums.MapModeEnum;
 import com.tencent.supersonic.headless.api.pojo.response.S2Term;
-import com.tencent.supersonic.headless.chat.QueryContext;
-import com.tencent.supersonic.headless.chat.knowledge.helper.NatureHelper;
+import com.tencent.supersonic.headless.chat.ChatQueryContext;
+import com.tencent.supersonic.headless.chat.knowledge.MapResult;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Service
 @Slf4j
-public abstract class BaseMatchStrategy<T> implements MatchStrategy<T> {
+public abstract class BaseMatchStrategy<T extends MapResult> implements MatchStrategy<T> {
 
     @Autowired
-    protected MapperHelper mapperHelper;
-
-    @Autowired
-    protected MapperConfig mapperConfig;
+    @Qualifier("mapExecutor")
+    private ThreadPoolExecutor executor;
 
     @Override
-    public Map<MatchText, List<T>> match(QueryContext queryContext, List<S2Term> terms,
-                                         Set<Long> detectDataSetIds) {
-        String text = queryContext.getQueryText();
+    public Map<MatchText, List<T>> match(ChatQueryContext chatQueryContext, List<S2Term> terms,
+            Set<Long> detectDataSetIds) {
+        String text = chatQueryContext.getRequest().getQueryText();
         if (Objects.isNull(terms) || StringUtils.isEmpty(text)) {
             return null;
         }
 
         log.debug("terms:{},,detectDataSetIds:{}", terms, detectDataSetIds);
 
-        List<T> detects = detect(queryContext, terms, detectDataSetIds);
+        List<T> detects = detect(chatQueryContext, terms, detectDataSetIds);
         Map<MatchText, List<T>> result = new HashMap<>();
 
         result.put(MatchText.builder().regText(text).detectSegment(text).build(), detects);
         return result;
     }
 
-    public List<T> detect(QueryContext queryContext, List<S2Term> terms, Set<Long> detectDataSetIds) {
-        Map<Integer, Integer> regOffsetToLength = getRegOffsetToLength(terms);
-        String text = queryContext.getQueryText();
-        Set<T> results = new HashSet<>();
-
-        Set<String> detectSegments = new HashSet<>();
-
-        for (Integer startIndex = 0; startIndex <= text.length() - 1; ) {
-
-            for (Integer index = startIndex; index <= text.length(); ) {
-                int offset = mapperHelper.getStepOffset(terms, startIndex);
-                index = mapperHelper.getStepIndex(regOffsetToLength, index);
-                if (index <= text.length()) {
-                    String detectSegment = text.substring(startIndex, index).trim();
-                    detectSegments.add(detectSegment);
-                    detectByStep(queryContext, results, detectDataSetIds, detectSegment, offset);
-                }
-            }
-            startIndex = mapperHelper.getStepIndex(regOffsetToLength, startIndex);
-        }
-        detectByBatch(queryContext, results, detectDataSetIds, detectSegments);
-        return new ArrayList<>(results);
-    }
-
-    protected void detectByBatch(QueryContext queryContext, Set<T> results, Set<Long> detectDataSetIds,
-                                 Set<String> detectSegments) {
-    }
-
-    public Map<Integer, Integer> getRegOffsetToLength(List<S2Term> terms) {
-        return terms.stream().sorted(Comparator.comparing(S2Term::length))
-                .collect(Collectors.toMap(S2Term::getOffset, term -> term.word.length(),
-                        (value1, value2) -> value2));
+    public List<T> detect(ChatQueryContext chatQueryContext, List<S2Term> terms,
+            Set<Long> detectDataSetIds) {
+        throw new RuntimeException("Not implemented");
     }
 
     public void selectResultInOneRound(Set<T> existResults, List<T> oneRoundResults) {
@@ -89,17 +55,15 @@ public abstract class BaseMatchStrategy<T> implements MatchStrategy<T> {
         }
         for (T oneRoundResult : oneRoundResults) {
             if (existResults.contains(oneRoundResult)) {
-                boolean isDeleted = existResults.removeIf(
-                        existResult -> {
-                            boolean delete = needDelete(oneRoundResult, existResult);
-                            if (delete) {
-                                log.info("deleted existResult:{}", existResult);
-                            }
-                            return delete;
-                        }
-                );
+                boolean isDeleted = existResults.removeIf(existResult -> {
+                    boolean delete = existResult.lessSimilar(oneRoundResult);
+                    if (delete) {
+                        log.debug("deleted existResult:{}", existResult);
+                    }
+                    return delete;
+                });
                 if (isDeleted) {
-                    log.info("deleted, add oneRoundResult:{}", oneRoundResult);
+                    log.debug("deleted, add oneRoundResult:{}", oneRoundResult);
                     existResults.add(oneRoundResult);
                 }
             } else {
@@ -108,57 +72,22 @@ public abstract class BaseMatchStrategy<T> implements MatchStrategy<T> {
         }
     }
 
-    public List<T> getMatches(QueryContext queryContext, List<S2Term> terms) {
-        Set<Long> dataSetIds = queryContext.getDataSetIds();
-        terms = filterByDataSetId(terms, dataSetIds);
-        Map<MatchText, List<T>> matchResult = match(queryContext, terms, dataSetIds);
-        List<T> matches = new ArrayList<>();
-        if (Objects.isNull(matchResult)) {
-            return matches;
-        }
-        Optional<List<T>> first = matchResult.entrySet().stream()
-                .filter(entry -> CollectionUtils.isNotEmpty(entry.getValue()))
-                .map(entry -> entry.getValue()).findFirst();
-
-        if (first.isPresent()) {
-            matches = first.get();
-        }
-        return matches;
-    }
-
-    public List<S2Term> filterByDataSetId(List<S2Term> terms, Set<Long> dataSetIds) {
-        logTerms(terms);
-        if (CollectionUtils.isNotEmpty(dataSetIds)) {
-            terms = terms.stream().filter(term -> {
-                Long dataSetId = NatureHelper.getDataSetId(term.getNature().toString());
-                if (Objects.nonNull(dataSetId)) {
-                    return dataSetIds.contains(dataSetId);
-                }
-                return false;
-            }).collect(Collectors.toList());
-            log.debug("terms filter by dataSetId:{}", dataSetIds);
-            logTerms(terms);
-        }
-        return terms;
-    }
-
-    public void logTerms(List<S2Term> terms) {
-        if (CollectionUtils.isEmpty(terms)) {
-            return;
-        }
-        for (S2Term term : terms) {
-            log.debug("word:{},nature:{},frequency:{}", term.word, term.nature.toString(), term.getFrequency());
+    protected void executeTasks(List<Callable<Void>> tasks) {
+        try {
+            executor.invokeAll(tasks);
+            for (Callable<Void> future : tasks) {
+                future.call();
+            }
+        } catch (Exception e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Task execution interrupted", e);
         }
     }
-
-    public abstract boolean needDelete(T oneRoundResult, T existResult);
-
-    public abstract String getMapKey(T a);
-
-    public abstract void detectByStep(QueryContext queryContext, Set<T> existResults, Set<Long> detectDataSetIds,
-                                      String detectSegment, int offset);
 
     public double getThreshold(Double threshold, Double minThreshold, MapModeEnum mapModeEnum) {
+        if (MapModeEnum.STRICT.equals(mapModeEnum)) {
+            return 1.0d;
+        }
         double decreaseAmount = (threshold - minThreshold) / 4;
         double divideThreshold = threshold - mapModeEnum.threshold * decreaseAmount;
         return divideThreshold >= minThreshold ? divideThreshold : minThreshold;

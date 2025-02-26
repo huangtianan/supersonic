@@ -1,122 +1,103 @@
 package com.tencent.supersonic.headless.chat.corrector;
 
-
-import com.tencent.supersonic.common.pojo.enums.TimeDimensionEnum;
-import com.tencent.supersonic.common.util.ContextUtils;
+import com.tencent.supersonic.common.jsqlparser.DateVisitor.DateBoundInfo;
 import com.tencent.supersonic.common.jsqlparser.SqlAddHelper;
 import com.tencent.supersonic.common.jsqlparser.SqlDateSelectHelper;
-import com.tencent.supersonic.common.jsqlparser.SqlReplaceHelper;
 import com.tencent.supersonic.common.jsqlparser.SqlSelectHelper;
-import com.tencent.supersonic.common.jsqlparser.SqlRemoveHelper;
-import com.tencent.supersonic.common.jsqlparser.DateVisitor.DateBoundInfo;
+import com.tencent.supersonic.common.pojo.enums.QueryType;
+import com.tencent.supersonic.headless.api.pojo.DataSetSchema;
+import com.tencent.supersonic.headless.api.pojo.QueryConfig;
 import com.tencent.supersonic.headless.api.pojo.SemanticParseInfo;
-import com.tencent.supersonic.headless.chat.QueryContext;
-import com.tencent.supersonic.headless.chat.utils.S2SqlDateHelper;
+import com.tencent.supersonic.headless.api.pojo.TimeDefaultConfig;
+import com.tencent.supersonic.headless.chat.ChatQueryContext;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.springframework.core.env.Environment;
 import org.springframework.util.CollectionUtils;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
-/**
- * Perform SQL corrections on the time in S2SQL.
- */
+/** Perform SQL corrections on the time in S2SQL. */
 @Slf4j
 public class TimeCorrector extends BaseSemanticCorrector {
 
     @Override
-    public void doCorrect(QueryContext queryContext, SemanticParseInfo semanticParseInfo) {
-
-        addDateIfNotExist(queryContext, semanticParseInfo);
-
-        removeDateIfExist(queryContext, semanticParseInfo);
-
-        parserDateDiffFunction(semanticParseInfo);
-
-        addLowerBoundDate(semanticParseInfo);
-
-    }
-
-    private void removeDateIfExist(QueryContext queryContext, SemanticParseInfo semanticParseInfo) {
-        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectS2SQL();
-        //decide whether remove date field from where
-        Environment environment = ContextUtils.getBean(Environment.class);
-        String correctorDate = environment.getProperty("s2.corrector.date");
-        if (StringUtils.isNotBlank(correctorDate) && !Boolean.parseBoolean(correctorDate)) {
-            Set<String> removeFieldNames = new HashSet<>();
-            removeFieldNames.add(TimeDimensionEnum.DAY.getChName());
-            removeFieldNames.add(TimeDimensionEnum.WEEK.getChName());
-            removeFieldNames.add(TimeDimensionEnum.MONTH.getChName());
-            correctS2SQL = SqlRemoveHelper.removeWhereCondition(correctS2SQL, removeFieldNames);
-            semanticParseInfo.getSqlInfo().setCorrectS2SQL(correctS2SQL);
+    public void doCorrect(ChatQueryContext chatQueryContext, SemanticParseInfo semanticParseInfo) {
+        if (containsPartitionDimensions(chatQueryContext, semanticParseInfo)) {
+            addDateIfNotExist(chatQueryContext, semanticParseInfo);
+            addLowerBoundDate(semanticParseInfo);
+        } else {
+            removeDateIfExist(chatQueryContext, semanticParseInfo);
         }
     }
 
-    private void addDateIfNotExist(QueryContext queryContext, SemanticParseInfo semanticParseInfo) {
-        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectS2SQL();
+    private void addDateIfNotExist(ChatQueryContext chatQueryContext,
+            SemanticParseInfo semanticParseInfo) {
+        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectedS2SQL();
         List<String> whereFields = SqlSelectHelper.getWhereFields(correctS2SQL);
-
-        //decide whether add date field to where
-        Environment environment = ContextUtils.getBean(Environment.class);
-        String correctorDate = environment.getProperty("s2.corrector.date");
-        if (StringUtils.isNotBlank(correctorDate) && !Boolean.parseBoolean(correctorDate)) {
+        Long dataSetId = semanticParseInfo.getDataSetId();
+        DataSetSchema dataSetSchema =
+                chatQueryContext.getSemanticSchema().getDataSetSchemaMap().get(dataSetId);
+        if (Objects.isNull(dataSetSchema) || Objects.isNull(dataSetSchema.getPartitionDimension())
+                || Objects.isNull(dataSetSchema.getPartitionDimension().getName())) {
             return;
         }
-        if (CollectionUtils.isEmpty(whereFields) || !TimeDimensionEnum.containsZhTimeDimension(whereFields)) {
+        String partitionDimension = dataSetSchema.getPartitionDimension().getName();
+        if (CollectionUtils.isEmpty(whereFields) || !whereFields.contains(partitionDimension)) {
+            TimeDefaultConfig timeConfig;
+            QueryConfig queryConfig = dataSetSchema.getQueryConfig();
+            if (QueryType.AGGREGATE.equals(semanticParseInfo.getQueryType())) {
+                timeConfig = queryConfig.getAggregateTypeDefaultConfig().getTimeDefaultConfig();
+            } else {
+                timeConfig = queryConfig.getDetailTypeDefaultConfig().getTimeDefaultConfig();
+            }
 
-            Pair<String, String> startEndDate = S2SqlDateHelper.getStartEndDate(queryContext,
-                    semanticParseInfo.getDataSetId(), semanticParseInfo.getQueryType());
-
-            if (StringUtils.isNotBlank(startEndDate.getLeft())
-                    && StringUtils.isNotBlank(startEndDate.getRight())) {
+            String timeFormat = dataSetSchema.getPartitionTimeFormat();
+            Pair<String, String> dateRange =
+                    S2SqlDateHelper.calculateDateRange(timeConfig, timeFormat);
+            if (isValidDateRange(dateRange)) {
                 correctS2SQL = SqlAddHelper.addParenthesisToWhere(correctS2SQL);
-                String dateChName = TimeDimensionEnum.DAY.getChName();
-                String condExpr = String.format(" ( %s >= '%s'  and %s <= '%s' )", dateChName,
-                        startEndDate.getLeft(), dateChName, startEndDate.getRight());
-                try {
-                    Expression expression = CCJSqlParserUtil.parseCondExpression(condExpr);
-                    correctS2SQL = SqlAddHelper.addWhere(correctS2SQL, expression);
-                } catch (JSQLParserException e) {
-                    log.error("parseCondExpression:{}", e);
-                }
+                String startDateLeft = dateRange.getLeft();
+                String endDateRight = dateRange.getRight();
+                String condExpr = String.format(" ( %s >= '%s'  and %s <= '%s' )",
+                        partitionDimension, startDateLeft, partitionDimension, endDateRight);
+                correctS2SQL = addConditionToSQL(correctS2SQL, condExpr);
             }
         }
-        semanticParseInfo.getSqlInfo().setCorrectS2SQL(correctS2SQL);
+        semanticParseInfo.getSqlInfo().setCorrectedS2SQL(correctS2SQL);
     }
 
     private void addLowerBoundDate(SemanticParseInfo semanticParseInfo) {
-        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectS2SQL();
-        DateBoundInfo dateBoundInfo = SqlDateSelectHelper.getDateBoundInfo(correctS2SQL);
-        if (Objects.isNull(dateBoundInfo)) {
-            return;
-        }
-        if (StringUtils.isBlank(dateBoundInfo.getLowerBound())
+        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectedS2SQL();
+        DateBoundInfo dateBoundInfo = SqlDateSelectHelper.getDateBoundInfo(correctS2SQL,
+                semanticParseInfo.getDateInfo().getDateField());
+
+        if (dateBoundInfo != null && StringUtils.isBlank(dateBoundInfo.getLowerBound())
                 && StringUtils.isNotBlank(dateBoundInfo.getUpperBound())
                 && StringUtils.isNotBlank(dateBoundInfo.getUpperDate())) {
             String upperDate = dateBoundInfo.getUpperDate();
-            try {
-                correctS2SQL = SqlAddHelper.addParenthesisToWhere(correctS2SQL);
-                String condExpr = dateBoundInfo.getColumName() + " >= '" + upperDate + "'";
-                correctS2SQL = SqlAddHelper.addWhere(correctS2SQL, CCJSqlParserUtil.parseCondExpression(condExpr));
-            } catch (JSQLParserException e) {
-                log.error("parseCondExpression", e);
-            }
-            semanticParseInfo.getSqlInfo().setCorrectS2SQL(correctS2SQL);
+            String condExpr = dateBoundInfo.getColumName() + " >= '" + upperDate + "'";
+            correctS2SQL = addConditionToSQL(correctS2SQL, condExpr);
+            semanticParseInfo.getSqlInfo().setCorrectedS2SQL(correctS2SQL);
         }
     }
 
-    private void parserDateDiffFunction(SemanticParseInfo semanticParseInfo) {
-        String correctS2SQL = semanticParseInfo.getSqlInfo().getCorrectS2SQL();
-        correctS2SQL = SqlReplaceHelper.replaceFunction(correctS2SQL);
-        semanticParseInfo.getSqlInfo().setCorrectS2SQL(correctS2SQL);
+    private boolean isValidDateRange(Pair<String, String> startEndDate) {
+        return StringUtils.isNotBlank(startEndDate.getLeft())
+                && StringUtils.isNotBlank(startEndDate.getRight());
     }
 
+    private String addConditionToSQL(String sql, String condition) {
+        try {
+            Expression expression = CCJSqlParserUtil.parseCondExpression(condition);
+            return SqlAddHelper.addWhere(sql, expression);
+        } catch (JSQLParserException e) {
+            log.error("addConditionToSQL:{}", e);
+            return sql;
+        }
+    }
 }
